@@ -1,0 +1,35 @@
+<body data-cipher="simon">
+<a class="skip" href="#main">Skip to the current chapter</a>
+<div class="app">
+  <header class="topbar">
+    <label for="chSelect" class="sr">Go to chapter</label>
+    <select id="chSelect"></select>
+    <span class="tb-variant" id="tbVariant"></span>
+  </header>
+  <aside class="side" aria-label="Chapters and current inputs">
+    <div class="brand">
+      <p class="kicker">ref.py, explained</p>
+      <h1>SIMON &amp; SPECK</h1>
+      <p class="sub">Beaulieu et al., NSA, 2013</p>
+    </div>
+    <nav class="toc" aria-label="Chapters"><ol id="toc"></ol></nav>
+    <section class="card inputs-card" aria-labelledby="cardTitle">
+      <h2 id="cardTitle">Current inputs</h2>
+      <p class="vname" id="cardVariant"></p>
+      <dl id="cardBody"></dl>
+      <button type="button" class="btn" id="changeInputs">Change inputs</button>
+      <p class="test-badge" id="testBadge"></p>
+    </section>
+  </aside>
+  <main id="main" tabindex="-1">
+    <div id="failBanner" class="banner bad" role="alert" hidden></div>
+    <div id="chapters"></div>
+    <nav class="pager" aria-label="Previous and next chapter">
+      <button type="button" class="btn" id="prevBtn"></button>
+      <button type="button" class="btn" id="nextBtn"></button>
+    </nav>
+  </main>
+</div>
+<noscript><p style="padding:1rem">This page computes everything live in JavaScript. Please enable JavaScript to use it.</p></noscript>
+
+<!-- ref.py, verbatim. The page reads its lines from here, so line numbers always match the file. -->

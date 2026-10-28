@@ -1,0 +1,3607 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ref.py explained: SIMON and SPECK</title>
+<meta name="description" content="A guided, visual debugger for a Python reference implementation of the SIMON and SPECK lightweight block ciphers.">
+<style>
+:root{
+  --bg:#f6f5f1; --panel:#ffffff; --panel-2:#efede7; --ink:#1a1c20; --ink-2:#454b55; --ink-3:#626873; --line:#d9d5cb;
+  --bit1:#22262c; --bit0:#dcd9d0; --code-bg:#fbfaf7;
+  --simon:#0b5fa5; --speck:#b23c0a; --on-accent:#ffffff;
+  --ok:#19713a; --bad:#b42318; --bad-bg:#fdecea; --ok-bg:#e8f4ec;
+  --k-kw:#7c3aed; --k-str:#2e7d32; --k-num:#a14a00; --k-com:#6b7280; --k-fn:#0f6e66; --k-bi:#9d174d; --k-const:#8a5a00;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SFMono-Regular","JetBrains Mono","Cascadia Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --topbar-h:0px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#121418; --panel:#1a1d22; --panel-2:#23272e; --ink:#e9e7e2; --ink-2:#c3c6cc; --ink-3:#9096a0; --line:#343841;
+    --bit1:#eceae4; --bit0:#3a3f48; --code-bg:#16191d;
+    --simon:#4a94d8; --speck:#d96f33; --on-accent:#111317;
+    --ok:#5fd08a; --bad:#ff7b72; --bad-bg:#3a1d1c; --ok-bg:#16301f;
+    --k-kw:#c4a7ff; --k-str:#8fd694; --k-num:#f0b46c; --k-com:#8b93a1; --k-fn:#6fd3c6; --k-bi:#f49ac1; --k-const:#e8c37a;
+    color-scheme:dark;
+  }
+}
+body{--accent:var(--simon)}
+body[data-cipher="speck"]{--accent:var(--speck)}
+.c-simon{--accent:var(--simon)} .c-speck{--accent:var(--speck)}
+body,.c-simon,.c-speck{--tint:color-mix(in srgb,var(--accent) 13%,transparent);--tint-2:color-mix(in srgb,var(--accent) 26%,transparent)}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15.5px/1.6 var(--font);-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{transition:none!important;animation:none!important}}
+a{color:var(--accent)}
+code,kbd,pre,samp{font-family:var(--mono);font-size:.9em}
+p code,li code,td code,dd code,h3 code,.say code,summary code{background:var(--panel-2);padding:.05em .3em;border-radius:4px}
+h1,h2,h3,h4{line-height:1.25;margin:0}
+h3{font-size:1.12rem;margin:2rem 0 .6rem}
+h4{font-size:.98rem;margin:1.2rem 0 .4rem}
+p{margin:.5rem 0 .8rem}
+ul,ol{padding-left:1.3rem}
+li{margin:.2rem 0}
+dfn{font-style:normal;font-weight:650}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:4px}
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.muted{color:var(--ink-3)}
+.mono{font-family:var(--mono)}
+.nowrap{white-space:nowrap}
+.skip{position:absolute;left:-9999px;top:.5rem;z-index:100;background:var(--panel);color:var(--ink);padding:.5rem 1rem;border-radius:8px;border:2px solid var(--accent)}
+.skip:focus{left:.5rem}
+
+/* ---------- layout ---------- */
+.app{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:100vh}
+.side{position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--panel);border-right:1px solid var(--line);padding:1.2rem .9rem 1.5rem;display:flex;flex-direction:column;gap:1rem}
+.brand .kicker{margin:0;font:600 .72rem/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.brand h1{font-size:1.3rem;margin:.15rem 0 .1rem}
+.brand .sub{margin:0;font-size:.82rem;color:var(--ink-3)}
+.toc ol{list-style:none;margin:0;padding:0}
+.toc li{margin:0}
+.toc a{display:flex;gap:.55rem;align-items:baseline;padding:.32rem .6rem;border-radius:7px;color:var(--ink-2);text-decoration:none;font-size:.93rem}
+.toc a .num{font:600 .78rem/1 var(--mono);color:var(--ink-3);min-width:1.3rem;text-align:right}
+.toc a:hover{background:var(--panel-2);color:var(--ink)}
+.toc a[aria-current="page"]{background:var(--tint);color:var(--ink);font-weight:650;box-shadow:inset 3px 0 0 var(--accent)}
+.toc a[aria-current="page"] .num{color:var(--accent)}
+.card{border:1px solid var(--line);border-radius:10px;padding:.75rem .85rem;background:var(--bg)}
+.inputs-card h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);margin:0 0 .4rem}
+.inputs-card .vname{font:700 1.05rem var(--mono);color:var(--accent);margin:0 0 .35rem}
+.inputs-card dl{margin:0 0 .6rem;display:grid;grid-template-columns:auto minmax(0,1fr);gap:.15rem .6rem;font-size:.82rem}
+.inputs-card dt{color:var(--ink-3)}
+.inputs-card dd{margin:0;font-family:var(--mono);word-break:break-all;line-height:1.4}
+.test-badge{margin:.6rem 0 0;font-size:.8rem}
+.topbar{display:none}
+main{padding:2rem clamp(1rem,4vw,3rem) 4rem;width:100%;max-width:1060px}
+.banner{border-radius:10px;padding:.75rem 1rem;margin:0 0 1.5rem;font-weight:600}
+.banner.bad{background:var(--bad-bg);color:var(--bad);border:1px solid var(--bad)}
+@media (max-width:979.98px){
+  :root{--topbar-h:56px}
+  .app{display:block}
+  .topbar{display:flex;position:sticky;top:0;z-index:30;gap:.6rem;align-items:center;min-height:var(--topbar-h);padding:.5rem 1rem;padding-top:calc(.5rem + env(safe-area-inset-top,0px));background:var(--panel);border-bottom:1px solid var(--line)}
+  .topbar select{flex:1;min-width:0;font:inherit;font-size:.95rem;padding:.4rem .5rem;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+  .topbar .tb-variant{font:700 .85rem var(--mono);color:var(--accent);white-space:nowrap}
+  .side{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:.8rem 1rem}
+  .side .brand,.side .toc{display:none}
+  .inputs-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 .8rem;align-items:start;padding:.55rem .75rem}
+  .inputs-card h2{display:none}
+  .inputs-card .vname{grid-column:1;margin:0 0 .2rem;font-size:.95rem}
+  .inputs-card dl{grid-column:1;margin:0;font-size:.78rem;gap:0 .5rem}
+  .inputs-card #changeInputs{grid-column:2;grid-row:1 / span 2;font-size:.8rem;padding:.3rem .6rem;min-height:2rem}
+  .inputs-card .test-badge{grid-column:2;grid-row:3;margin:.2rem 0 0;font-size:.72rem;text-align:right}
+  .dbg-slider{flex-wrap:wrap}
+  .dbg-slider input{order:3;flex-basis:100%}
+  main{padding-top:1.4rem}
+}
+
+/* ---------- chapter chrome ---------- */
+.ch-head{margin:0 0 1.4rem;padding-bottom:1rem;border-bottom:1px solid var(--line)}
+.ch-num{margin:0 0 .25rem;font:600 .78rem var(--mono);color:var(--accent);letter-spacing:.04em;text-transform:uppercase}
+.ch-head h2{font-size:clamp(1.55rem,3vw,2rem)}
+.ch-head h2:focus{outline:none}
+.gist{font-size:1.06rem;color:var(--ink-2);margin:.4rem 0 0;max-width:60ch}
+.pager{display:flex;justify-content:space-between;gap:1rem;margin-top:3rem;padding-top:1.2rem;border-top:1px solid var(--line)}
+.pager .btn{max-width:48%;text-align:left}
+.pager .btn:last-child{text-align:right;margin-left:auto}
+.pager .btn small{display:block;font-size:.72rem;color:var(--ink-3);font-weight:500}
+.lede{font-size:1.02rem;max-width:72ch}
+.prose{max-width:74ch}
+
+/* ---------- controls ---------- */
+.btn{font:inherit;font-size:.9rem;font-weight:550;line-height:1.3;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:.45rem .8rem;border-radius:8px;cursor:pointer;min-height:2.25rem}
+.btn:hover{border-color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:default;border-color:var(--line)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.small{font-size:.8rem;padding:.25rem .55rem;min-height:1.8rem}
+.btn-row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.8rem 0}
+fieldset{border:0;margin:0;padding:0;min-width:0}
+legend{font-weight:650;font-size:.9rem;padding:0;margin-bottom:.35rem}
+.field label,.lbl{display:block;font-weight:600;font-size:.85rem;margin-bottom:.25rem}
+.field .hint{font-weight:400;color:var(--ink-3);font-size:.78rem;margin-left:.3rem;font-family:var(--mono)}
+input[type="text"],select{font:.95rem var(--mono);width:100%;padding:.45rem .55rem;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink);min-height:2.3rem}
+select{font-family:var(--font)}
+input[type="text"]:hover,select:hover{border-color:var(--ink-3)}
+input[aria-invalid="true"]{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
+input[type="range"]{accent-color:var(--accent);width:100%;min-width:0}
+input[type="checkbox"],input[type="radio"]{accent-color:var(--accent)}
+.err{color:var(--bad);font-size:.8rem;margin:.25rem 0 0;font-weight:550}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel)}
+.seg input{position:absolute;opacity:0;width:1px;height:1px}
+.seg label{padding:.42rem 1rem;cursor:pointer;font-weight:650;font-size:.9rem;margin:0}
+.seg label+input+label{border-left:1px solid var(--line)}
+.seg input:checked+label{background:var(--accent);color:var(--on-accent)}
+.seg input:focus-visible+label{outline:3px solid var(--accent);outline-offset:-3px}
+.seg .c-simon,.seg .c-speck{display:contents}
+.form-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.9rem 1rem;margin:.9rem 0}
+.words{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem .8rem}
+.status{min-height:1.5em;font-size:.9rem;font-weight:550}
+.status.ok{color:var(--ok)} .status.bad{color:var(--bad)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:1rem 1.1rem;margin:1rem 0}
+.callout{border-left:4px solid var(--accent);background:var(--tint);padding:.7rem 1rem;border-radius:0 10px 10px 0;margin:1rem 0}
+.callout p:first-child{margin-top:0}.callout p:last-child{margin-bottom:0}
+
+/* ---------- tables & details ---------- */
+.tbl{overflow-x:auto;margin:.8rem 0;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{text-align:left;padding:.45rem .65rem;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{background:var(--panel-2);font-weight:650;font-size:.8rem;white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+tbody th{font-weight:650;background:var(--panel-2);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-2)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.hex{font-family:var(--mono);font-size:.82rem;white-space:nowrap}
+tr.cur td{background:var(--tint)}
+tr.cur td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+tr.click{cursor:pointer}
+tr.click:hover td{background:var(--panel-2)}
+tr.cur.click:hover td{background:var(--tint-2)}
+.pass{color:var(--ok);font-weight:700}
+.fail{color:var(--bad);font-weight:700}
+details{border:1px solid var(--line);border-radius:10px;background:var(--panel);margin:1rem 0}
+summary{cursor:pointer;padding:.65rem .95rem;font-weight:650;list-style-position:inside}
+summary:hover{color:var(--accent)}
+details[open] summary{border-bottom:1px solid var(--line)}
+details>.inner{padding:.2rem .95rem .9rem}
+details .tbl{border:0;border-radius:0;margin:0 -.95rem;background:transparent}
+
+/* ---------- code ---------- */
+.code{position:relative;background:var(--code-bg);border:1px solid var(--line);border-radius:10px;overflow:auto;margin:.8rem 0;font:12.8px/1.6 var(--mono)}
+.code pre{margin:0;padding:.45rem 0;min-width:max-content;font:inherit}
+.code .ln{display:block;white-space:pre;padding-right:1rem;min-height:1.6em}
+.code .no{display:inline-block;width:3.3em;padding-right:.8em;margin-right:.9em;text-align:right;color:var(--ink-3);border-right:1px solid var(--line);user-select:none;-webkit-user-select:none}
+.code .ln.on{background:var(--tint);box-shadow:inset 4px 0 0 var(--accent)}
+.code .ln.on .no{color:var(--accent);font-weight:700}
+.code .ln.skip .src{opacity:.5;text-decoration:line-through;text-decoration-color:var(--bad)}
+.code .ln.gap .no{border-right-style:dashed}
+.code mark{background:var(--tint-2);color:inherit;border-radius:3px;outline:1px solid color-mix(in srgb,var(--accent) 45%,transparent)}
+.tk-kw{color:var(--k-kw)} .tk-str{color:var(--k-str)} .tk-num{color:var(--k-num)} .tk-com{color:var(--k-com);font-style:italic}
+.tk-fn{color:var(--k-fn)} .tk-bi{color:var(--k-bi)} .tk-const{color:var(--k-const)}
+.code-tools{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+pre.out{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;padding:.7rem 1rem;overflow-x:auto;font:12.8px/1.55 var(--mono);margin:.8rem 0}
+pre.out.bad{border-color:var(--bad);color:var(--bad);background:var(--bad-bg)}
+pre.out.good{border-color:var(--ok)}
+
+/* ---------- bit strips ---------- */
+.bits{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));column-gap:1px;height:18px;width:100%;max-width:calc(var(--cols) * 20px)}
+.bits>i{display:block;background:var(--bit0);border-radius:2px;position:relative;min-width:0}
+.bits>i.b1{background:var(--bit1)}
+.bits>i.nb{margin-left:2px}
+.bits>i.sp{background:transparent}
+.bits>i.ov{background:repeating-linear-gradient(135deg,var(--bit0) 0 2px,transparent 2px 4px);outline:1px dashed var(--ink-3);outline-offset:-1px}
+.bits>i.ov.b1{background:repeating-linear-gradient(135deg,var(--bit1) 0 2.5px,transparent 2.5px 4px)}
+.bits>i.chg{box-shadow:0 0 0 2px var(--accent);z-index:1}
+.bits>i.mk::after{content:"";position:absolute;left:10%;right:10%;bottom:-5px;height:3px;border-radius:2px;background:var(--accent)}
+.bits>i.hit{box-shadow:0 0 0 2px var(--accent),0 0 0 4px var(--panel);z-index:2}
+.bits.acc>i.b1{background:var(--accent)}
+.bits.click>i[data-bit]{cursor:pointer}
+.bits.click>i[data-bit]:hover{box-shadow:0 0 0 2px var(--ink-3)}
+.bits.big{height:24px}
+.ruler{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));column-gap:1px;width:100%;max-width:calc(var(--cols) * 20px);font:10px/1 var(--mono);color:var(--ink-3);height:12px}
+.ruler>span{white-space:nowrap;overflow:visible;display:flex;justify-content:center;min-width:0}
+.ruler>span.nb{margin-left:2px}
+.vars{display:flex;flex-direction:column;gap:.2rem;margin:.7rem 0}
+.vrow{display:grid;grid-template-columns:1.3rem minmax(8rem,14rem) minmax(0,1fr) minmax(5.5rem,auto);gap:.25rem .65rem;align-items:center;min-height:1.7rem}
+.vrow .op{font:700 1rem/1 var(--mono);color:var(--ink-3);text-align:center}
+.vrow .vn{font:.84rem/1.3 var(--mono);overflow-wrap:anywhere}
+.vrow .vn .sub{display:block;color:var(--ink-3);font:.76rem/1.3 var(--font)}
+.vrow .vh{font:.8rem var(--mono);color:var(--ink-2);text-align:right;white-space:nowrap}
+.vrow.res{border-top:1.5px solid var(--ink-3);padding-top:.35rem;margin-top:.1rem}
+.vrow.res .vn{font-weight:700}
+.vrow.rul{min-height:1rem}
+.vrow.sep{margin-top:.5rem}
+.wide-scroll{overflow-x:auto;padding:.2rem .1rem .6rem}
+.wide-scroll .vars{min-width:min(100%,640px)}
+@media (max-width:640px){
+  .vrow{grid-template-columns:1.1rem minmax(0,1fr) auto;grid-template-areas:"op vn vh" ". vb vb";row-gap:.15rem}
+  .vrow .op{grid-area:op} .vrow .vn{grid-area:vn} .vrow .vb{grid-area:vb} .vrow .vh{grid-area:vh}
+  .vrow.rul{grid-template-areas:". vb vb"}
+  .vrow.rul .vn,.vrow.rul .vh{display:none}
+  .dbg-bar{padding:.5rem .6rem;gap:.4rem .6rem}
+  .dbg-btns .btn{padding:.35rem .6rem;min-height:2rem;font-size:.85rem}
+  .pipe .arrow{display:none}
+  .pipe .step-btn{flex-basis:140px}
+  .tbl.stack{border-radius:10px}
+  .tbl.stack table,.tbl.stack tbody,.tbl.stack tr,.tbl.stack td,.tbl.stack tbody th{display:block;width:100%}
+  .tbl.stack thead{display:none}
+  .tbl.stack tr{border-bottom:1px solid var(--line);padding:.45rem 0}
+  .tbl.stack tbody tr:last-child{border-bottom:0}
+  .tbl.stack td{border:0;padding:.15rem .75rem}
+  .tbl.stack td[data-label]::before{content:attr(data-label);display:block;font:600 .7rem/1.5 var(--font);color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em}
+  .tbl.stack td:empty{display:none}
+  .bits>i.nb,.ruler>span.nb{margin-left:1px}
+}
+
+/* ---------- debugger ---------- */
+.dbg{border:1px solid var(--line);border-radius:12px;background:var(--panel);margin:1rem 0}
+.dbg-bar{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;padding:.7rem .9rem;border-bottom:1px solid var(--line);position:sticky;top:var(--topbar-h);background:var(--panel);z-index:6;border-radius:12px 12px 0 0}
+.dbg-slider{display:flex;align-items:center;gap:.6rem;flex:1 1 280px;min-width:0}
+.dbg-slider .lbl{margin:0;white-space:nowrap}
+.dbg-slider output{font:600 .85rem var(--mono);color:var(--accent);min-width:7.5rem;white-space:nowrap}
+.dbg-btns{display:flex;gap:.4rem;flex-wrap:wrap}
+.dbg-pos{font-size:.8rem;color:var(--ink-3);white-space:nowrap}
+.dbg-code .code{margin:0;border:0;border-radius:0;border-bottom:1px solid var(--line);max-height:19rem}
+.dbg-step{padding:.9rem 1rem 1rem}
+.say{font-size:1.02rem;margin:0 0 .4rem;font-weight:500;max-width:80ch}
+.lnref{font:700 .75rem var(--mono);background:var(--accent);color:var(--on-accent);padding:.12rem .45rem;border-radius:5px;margin-right:.5rem;vertical-align:.1em;white-space:nowrap}
+.tag{display:inline-block;font:700 .7rem/1.5 var(--font);text-transform:uppercase;letter-spacing:.05em;padding:.05rem .45rem;border-radius:99px;border:1.5px solid var(--accent);color:var(--accent);margin-left:.4rem;vertical-align:.12em}
+.note{font-size:.9rem;color:var(--ink-2);margin:.6rem 0 0;max-width:80ch}
+.match{display:inline-flex;gap:.4rem;align-items:center;font-weight:650;color:var(--ok);background:var(--ok-bg);border-radius:8px;padding:.3rem .6rem;margin:.4rem 0;font-size:.9rem}
+.match.no{color:var(--bad);background:var(--bad-bg)}
+
+/* ---------- chapter-specific ---------- */
+.fams{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin:1rem 0}
+.fam{border:1px solid var(--line);border-top:4px solid var(--accent);border-radius:10px;padding:.8rem 1rem;background:var(--panel)}
+.fam h4{margin:0 0 .3rem;color:var(--accent);font-family:var(--mono);font-size:1.05rem}
+.fam ul{margin:.3rem 0;padding-left:1.1rem;font-size:.9rem}
+.pipe{display:flex;flex-wrap:wrap;align-items:stretch;gap:.35rem;margin:1rem 0}
+.pipe .step-btn{flex:1 1 128px;min-width:0;text-align:left;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:10px;padding:.6rem .7rem;cursor:pointer;font:inherit;display:flex;flex-direction:column;gap:.2rem}
+.pipe .step-btn:hover{border-color:var(--accent);background:var(--tint)}
+.pipe .step-btn b{font-size:.92rem}
+.pipe .step-btn b .sn{color:var(--accent);font-family:var(--mono);margin-right:.3rem}
+.pipe .step-btn code{font-size:.72rem;color:var(--ink-2);overflow-wrap:anywhere;background:none;padding:0}
+.pipe .step-btn .go{font-size:.72rem;color:var(--accent);font-weight:650;margin-top:auto}
+.pipe .arrow{align-self:center;color:var(--ink-3);font-size:1.1rem}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:.55rem 1.2rem;margin:.8rem 0;padding:0;list-style:none}
+.legend li{display:flex;gap:.7rem;align-items:center;margin:0;font-size:.9rem}
+.legend .sw{flex:0 0 auto;width:4.2rem;display:flex;justify-content:center}
+.legend .sw .bits{width:4.2rem}
+.sw-line{width:4.2rem;height:1.3rem;border-radius:4px;background:var(--tint);box-shadow:inset 4px 0 0 var(--accent)}
+.sw-acc{width:2.2rem;height:1.2rem;border-radius:4px}
+.glossary{display:grid;grid-template-columns:max-content 1fr;gap:.35rem 1rem;margin:.6rem 0;font-size:.92rem}
+.glossary dt{font-weight:650}
+.glossary dd{margin:0;color:var(--ink-2)}
+@media (max-width:640px){.glossary{grid-template-columns:1fr}.glossary dd{margin-bottom:.4rem}}
+.rev{margin:1rem 0;padding:.9rem;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.rev-row{display:grid;grid-template-columns:repeat(var(--m),minmax(0,1fr));gap:.5rem}
+.rev .chip{border:1px solid var(--line);border-radius:8px;padding:.35rem .5rem;text-align:center;background:var(--bg);min-width:0}
+.rev .chip .nm{display:block;font-size:.8rem;color:var(--ink-3)}
+.rev .chip code{font-size:.78rem;word-break:break-all}
+.rev .chip.code-order{border-color:var(--accent);background:var(--tint)}
+.rev svg{display:block;width:100%;height:48px;color:var(--accent)}
+.rev .cap{display:flex;justify-content:space-between;font-size:.78rem;color:var(--ink-3);margin:.2rem 0}
+.canvas-wrap{position:relative;margin:.8rem 0;overflow-x:auto}
+canvas{display:block;max-width:100%}
+canvas.strip{cursor:pointer;border-radius:6px}
+.heat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin:1rem 0}
+.heat{border:1px solid var(--line);border-top:4px solid var(--accent);border-radius:10px;background:var(--panel);padding:.7rem .8rem}
+.heat h4{margin:0 0 .2rem;font-family:var(--mono);color:var(--accent)}
+.heat p{font-size:.85rem;margin:.2rem 0 .5rem;color:var(--ink-2)}
+.chart{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.8rem;margin:1rem 0;position:relative}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart .tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:.45rem .6rem;font-size:.8rem;box-shadow:0 4px 14px rgba(0,0,0,.14);min-width:11rem;z-index:3}
+.chart .tip b{display:block;margin-bottom:.2rem}
+.chart .tip .k{display:inline-block;width:.7rem;height:.7rem;border-radius:2px;margin-right:.35rem;vertical-align:-.05em}
+.chart-legend{display:flex;flex-wrap:wrap;gap:.4rem 1.2rem;font-size:.85rem;margin:0 0 .4rem;padding:0;list-style:none}
+.chart-legend li{display:flex;align-items:center;gap:.4rem;margin:0}
+.chart-legend .k{width:1.4rem;height:3px;border-radius:2px;background:var(--accent)}
+.chart-legend .band{width:1.4rem;height:.8rem;background:var(--panel-2);border:1px dashed var(--ink-3)}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;margin:1rem 0}
+.stat{border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;padding:.7rem .9rem;background:var(--panel)}
+.stat .big{font-size:1.7rem;font-weight:700;line-height:1.1}
+.stat p{margin:.3rem 0 0;font-size:.88rem;color:var(--ink-2)}
+.pics{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin:1rem 0}
+.pics figure{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.6rem}
+.pics canvas{width:100%;height:auto;image-rendering:pixelated;border-radius:4px;background:#000}
+.pics figcaption{font-size:.85rem;margin-top:.45rem;color:var(--ink-2)}
+.pics figcaption b{color:var(--ink);display:block}
+.where{columns:2 260px;column-gap:2rem;padding-left:1.1rem;font-size:.92rem}
+.where li{break-inside:avoid}
+.kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:.2rem .9rem;font-size:.9rem;margin:.5rem 0}
+.kv dt{color:var(--ink-3)} .kv dd{margin:0;font-family:var(--mono);word-break:break-all}
+.flipctl{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center}
+.flipctl .lbl{margin:0}
+.flipctl input[type=range]{flex:1 1 220px}
+</style>
+</head>
+<body data-cipher="simon">
+<a class="skip" href="#main">Skip to the current chapter</a>
+<div class="app">
+  <header class="topbar">
+    <label for="chSelect" class="sr">Go to chapter</label>
+    <select id="chSelect"></select>
+    <span class="tb-variant" id="tbVariant"></span>
+  </header>
+  <aside class="side" aria-label="Chapters and current inputs">
+    <div class="brand">
+      <p class="kicker">ref.py, explained</p>
+      <h1>SIMON &amp; SPECK</h1>
+      <p class="sub">Beaulieu et al., NSA, 2013</p>
+    </div>
+    <nav class="toc" aria-label="Chapters"><ol id="toc"></ol></nav>
+    <section class="card inputs-card" aria-labelledby="cardTitle">
+      <h2 id="cardTitle">Current inputs</h2>
+      <p class="vname" id="cardVariant"></p>
+      <dl id="cardBody"></dl>
+      <button type="button" class="btn" id="changeInputs">Change inputs</button>
+      <p class="test-badge" id="testBadge"></p>
+    </section>
+  </aside>
+  <main id="main" tabindex="-1">
+    <div id="failBanner" class="banner bad" role="alert" hidden></div>
+    <div id="chapters"></div>
+    <nav class="pager" aria-label="Previous and next chapter">
+      <button type="button" class="btn" id="prevBtn"></button>
+      <button type="button" class="btn" id="nextBtn"></button>
+    </nav>
+  </main>
+</div>
+<noscript><p style="padding:1rem">This page computes everything live in JavaScript. Please enable JavaScript to use it.</p></noscript>
+
+<!-- ref.py, verbatim. The page reads its lines from here, so line numbers always match the file. -->
+<script type="text/plain" id="ref-py">Z = ["11111010001001010110000111001101111101000100101011000011100110",
+     "10001110111110010011000010110101000111011111001001100001011010",
+     "10101111011100000011010010011000101000010001111110010110110011",
+     "11011011101011000110010111100000010010001010011100110100001111",
+     "11010001111001101011011000100000010111000011001010010011101111"]
+
+SIMON = {(16, 4): (32, 0), (24, 3): (36, 0), (24, 4): (36, 1), (32, 3): (42, 2), (32, 4): (44, 3),
+         (48, 2): (52, 2), (48, 3): (54, 3), (64, 2): (68, 2), (64, 3): (69, 3), (64, 4): (72, 4)}
+SPECK = {(16, 4): 22, (24, 3): 22, (24, 4): 23, (32, 3): 26, (32, 4): 27,
+         (48, 2): 28, (48, 3): 29, (64, 2): 32, (64, 3): 33, (64, 4): 34}
+
+def rol(v, r, n): return ((v << r) | (v >> (n - r))) & ((1 << n) - 1)
+def ror(v, r, n): return ((v >> r) | (v << (n - r))) & ((1 << n) - 1)
+
+def _check(words, n, table, *block):
+    """Reject unsupported variants and values that don't fit in an n-bit word."""
+    if (n, len(words)) not in table:
+        raise ValueError(f"unsupported variant: {n}-bit words with {len(words)} key words")
+    for v in (*words, *block):
+        if not 0 <= v < (1 << n):
+            raise ValueError(f"value {v:#x} does not fit in a {n}-bit word")
+
+def simon_round_keys(key, n):
+    """key = [k0, k1, ..., k_{m-1}]  (k0 is the RIGHTMOST word in the paper's test vectors)"""
+    _check(key, n, SIMON)
+    m = len(key); T, j = SIMON[(n, m)]; mask = (1 << n) - 1
+    k = list(key)
+    for i in range(m, T):
+        tmp = ror(k[i - 1], 3, n)
+        if m == 4:
+            tmp ^= k[i - 3]
+        tmp ^= ror(tmp, 1, n)
+        k.append((~k[i - m] & mask) ^ tmp ^ int(Z[j][(i - m) % 62]) ^ 3)
+    return k
+
+def simon_f(v, n): return (rol(v, 1, n) & rol(v, 8, n)) ^ rol(v, 2, n)
+
+def simon_encrypt(x, y, key, n):
+    _check(key, n, SIMON, x, y)
+    for k in simon_round_keys(key, n):
+        x, y = y ^ simon_f(x, n) ^ k, x
+    return x, y
+
+def simon_decrypt(x, y, key, n):
+    _check(key, n, SIMON, x, y)
+    for k in reversed(simon_round_keys(key, n)):
+        x, y = y, x ^ simon_f(y, n) ^ k
+    return x, y
+
+def speck_round_keys(key, n):
+    """key = [k0, l0, l1, ..., l_{m-2}]  (k0 is the RIGHTMOST word in the paper's test vectors)"""
+    _check(key, n, SPECK)
+    m = len(key); T = SPECK[(n, m)]; mask = (1 << n) - 1
+    a, b = (7, 2) if n == 16 else (8, 3)
+    k, l = [key[0]], list(key[1:])
+    for i in range(T - 1):
+        l.append(((k[i] + ror(l[i], a, n)) & mask) ^ i)
+        k.append(rol(k[i], b, n) ^ l[i + m - 1])
+    return k
+
+def speck_encrypt(x, y, key, n):
+    _check(key, n, SPECK, x, y)
+    a, b = (7, 2) if n == 16 else (8, 3); mask = (1 << n) - 1
+    for k in speck_round_keys(key, n):
+        x = ((ror(x, a, n) + y) & mask) ^ k
+        y = rol(y, b, n) ^ x
+    return x, y
+
+def speck_decrypt(x, y, key, n):
+    _check(key, n, SPECK, x, y)
+    a, b = (7, 2) if n == 16 else (8, 3); mask = (1 << n) - 1
+    for k in reversed(speck_round_keys(key, n)):
+        y = ror(x ^ y, b, n)
+        x = rol(((x ^ k) - y) & mask, a, n)
+    return x, y
+
+# Test vectors from Appendices B and C: (n, key words left-to-right, plaintext, ciphertext)
+VECTORS = {
+ "simon": [
+  (16, "1918 1110 0908 0100", "6565 6877", "c69b e9bb"),
+  (24, "121110 0a0908 020100", "612067 6e696c", "dae5ac 292cac"),
+  (24, "1a1918 121110 0a0908 020100", "726963 20646e", "6e06a5 acf156"),
+  (32, "13121110 0b0a0908 03020100", "6f722067 6e696c63", "5ca2e27f 111a8fc8"),
+  (32, "1b1a1918 13121110 0b0a0908 03020100", "656b696c 20646e75", "44c8fc20 b9dfa07a"),
+  (48, "0d0c0b0a0908 050403020100", "2072616c6c69 702065687420", "602807a462b4 69063d8ff082"),
+  (48, "151413121110 0d0c0b0a0908 050403020100", "746168742074 73756420666f", "ecad1c6c451e 3f59c5db1ae9"),
+  (64, "0f0e0d0c0b0a0908 0706050403020100", "6373656420737265 6c6c657661727420", "49681b1e1e54fe3f 65aa832af84e0bbc"),
+  (64, "1716151413121110 0f0e0d0c0b0a0908 0706050403020100", "206572656874206e 6568772065626972", "c4ac61effcdc0d4f 6c9c8d6e2597b85b"),
+  (64, "1f1e1d1c1b1a1918 1716151413121110 0f0e0d0c0b0a0908 0706050403020100", "74206e69206d6f6f 6d69732061207369", "8d2b5579afc8a3a0 3bf72a87efe7b868")],
+ "speck": [
+  (16, "1918 1110 0908 0100", "6574 694c", "a868 42f2"),
+  (24, "121110 0a0908 020100", "20796c 6c6172", "c049a5 385adc"),
+  (24, "1a1918 121110 0a0908 020100", "6d2073 696874", "735e10 b6445d"),
+  (32, "13121110 0b0a0908 03020100", "74614620 736e6165", "9f7952ec 4175946c"),
+  (32, "1b1a1918 13121110 0b0a0908 03020100", "3b726574 7475432d", "8c6fa548 454e028b"),
+  (48, "0d0c0b0a0908 050403020100", "65776f68202c 656761737520", "9e4d09ab7178 62bdde8f79aa"),
+  (48, "151413121110 0d0c0b0a0908 050403020100", "656d6974206e 69202c726576", "2bf31072228a 7ae440252ee6"),
+  (64, "0f0e0d0c0b0a0908 0706050403020100", "6c61766975716520 7469206564616d20", "a65d985179783265 7860fedf5c570d18"),
+  (64, "1716151413121110 0f0e0d0c0b0a0908 0706050403020100", "7261482066656968 43206f7420746e65", "1be4cf3a13135566 f9bc185de03c1886"),
+  (64, "1f1e1d1c1b1a1918 1716151413121110 0f0e0d0c0b0a0908 0706050403020100", "65736f6874206e49 202e72656e6f6f70", "4109010405c0f53e 4eeeb48d9c188f43")]}
+
+if __name__ == "__main__":
+    ciphers = {"simon": (simon_encrypt, simon_decrypt), "speck": (speck_encrypt, speck_decrypt)}
+    for name, (enc, dec) in ciphers.items():
+        for n, key, pt, ct in VECTORS[name]:
+            words = [int(w, 16) for w in key.split()][::-1]      # -> [k0, k1, ...]
+            x, y = (int(w, 16) for w in pt.split())
+            cx, cy = enc(x, y, words, n)
+            ok = f"{cx:0{n//4}x} {cy:0{n//4}x}" == ct and dec(cx, cy, words, n) == (x, y)
+            print(f"{name.upper()}{2*n}/{n*len(words):<4} {'OK' if ok else 'FAIL'}")
+</script>
+
+<script id="ref-js">
+"use strict";
+// Line-for-line JavaScript translation of ref.py. The number at the end of each line is the ref.py line.
+// Words are BigInt (Python ints have no size limit; JS Numbers lose precision past 53 bits).
+// Sizes and counters (n, r, m, T, j, i) stay ordinary numbers, as they are small.
+
+const Z = ["11111010001001010110000111001101111101000100101011000011100110",    // 1
+           "10001110111110010011000010110101000111011111001001100001011010",    // 2
+           "10101111011100000011010010011000101000010001111110010110110011",    // 3
+           "11011011101011000110010111100000010010001010011100110100001111",    // 4
+           "11010001111001101011011000100000010111000011001010010011101111"];   // 5
+
+// A Python dict keyed by the tuple (n, m) becomes a Map keyed by the string "n,m".
+const SIMON = new Map([["16,4", [32, 0]], ["24,3", [36, 0]], ["24,4", [36, 1]], ["32,3", [42, 2]], ["32,4", [44, 3]],     // 7
+                       ["48,2", [52, 2]], ["48,3", [54, 3]], ["64,2", [68, 2]], ["64,3", [69, 3]], ["64,4", [72, 4]]]);  // 8
+const SPECK = new Map([["16,4", 22], ["24,3", 22], ["24,4", 23], ["32,3", 26], ["32,4", 27],                              // 9
+                       ["48,2", 28], ["48,3", 29], ["64,2", 32], ["64,3", 33], ["64,4", 34]]);                            // 10
+
+function rol(v, r, n) { r = BigInt(r); n = BigInt(n); return ((v << r) | (v >> (n - r))) & ((1n << n) - 1n); }  // 12
+function ror(v, r, n) { r = BigInt(r); n = BigInt(n); return ((v >> r) | (v << (n - r))) & ((1n << n) - 1n); }  // 13
+
+class ValueError extends Error { constructor(msg) { super(msg); this.name = "ValueError"; } }
+const pyHex = v => (v < 0n ? "-0x" + (-v).toString(16) : "0x" + v.toString(16));    // Python's f"{v:#x}"
+
+function _check(words, n, table, ...block) {                                          // 15
+  // Reject unsupported variants and values that don't fit in an n-bit word.          // 16
+  if (!table.has(`${n},${words.length}`))                                             // 17
+    throw new ValueError(`unsupported variant: ${n}-bit words with ${words.length} key words`);  // 18
+  for (const v of [...words, ...block])                                               // 19
+    if (!(0n <= v && v < (1n << BigInt(n))))                                          // 20
+      throw new ValueError(`value ${pyHex(v)} does not fit in a ${n}-bit word`);      // 21
+}
+
+function simon_round_keys(key, n) {                                                   // 23
+  // key = [k0, k1, ..., k_{m-1}]  (k0 is the RIGHTMOST word in the paper's test vectors)   // 24
+  _check(key, n, SIMON);                                                              // 25
+  const m = key.length, [T, j] = SIMON.get(`${n},${m}`), mask = (1n << BigInt(n)) - 1n;      // 26
+  const k = [...key];                                                                 // 27
+  for (let i = m; i < T; i++) {                                                       // 28
+    let tmp = ror(k[i - 1], 3, n);                                                    // 29
+    if (m === 4)                                                                      // 30
+      tmp ^= k[i - 3];                                                                // 31
+    tmp ^= ror(tmp, 1, n);                                                            // 32
+    k.push((~k[i - m] & mask) ^ tmp ^ BigInt(Z[j][(i - m) % 62]) ^ 3n);               // 33
+  }
+  return k;                                                                           // 34
+}
+
+function simon_f(v, n) { return (rol(v, 1, n) & rol(v, 8, n)) ^ rol(v, 2, n); }       // 36
+
+function simon_encrypt(x, y, key, n) {                                                // 38
+  _check(key, n, SIMON, x, y);                                                        // 39
+  for (const k of simon_round_keys(key, n))                                           // 40
+    [x, y] = [y ^ simon_f(x, n) ^ k, x];                                              // 41
+  return [x, y];                                                                      // 42
+}
+
+function simon_decrypt(x, y, key, n) {                                                // 44
+  _check(key, n, SIMON, x, y);                                                        // 45
+  for (const k of simon_round_keys(key, n).reverse())                                 // 46
+    [x, y] = [y, x ^ simon_f(y, n) ^ k];                                              // 47
+  return [x, y];                                                                      // 48
+}
+
+function speck_round_keys(key, n) {                                                   // 50
+  // key = [k0, l0, l1, ..., l_{m-2}]  (k0 is the RIGHTMOST word in the paper's test vectors)   // 51
+  _check(key, n, SPECK);                                                              // 52
+  const m = key.length, T = SPECK.get(`${n},${m}`), mask = (1n << BigInt(n)) - 1n;    // 53
+  const [a, b] = n === 16 ? [7, 2] : [8, 3];                                          // 54
+  const k = [key[0]], l = key.slice(1);                                               // 55
+  for (let i = 0; i < T - 1; i++) {                                                   // 56
+    l.push(((k[i] + ror(l[i], a, n)) & mask) ^ BigInt(i));                            // 57
+    k.push(rol(k[i], b, n) ^ l[i + m - 1]);                                           // 58
+  }
+  return k;                                                                           // 59
+}
+
+function speck_encrypt(x, y, key, n) {                                                // 61
+  _check(key, n, SPECK, x, y);                                                        // 62
+  const [a, b] = n === 16 ? [7, 2] : [8, 3], mask = (1n << BigInt(n)) - 1n;           // 63
+  for (const k of speck_round_keys(key, n)) {                                         // 64
+    x = ((ror(x, a, n) + y) & mask) ^ k;                                              // 65
+    y = rol(y, b, n) ^ x;                                                             // 66
+  }
+  return [x, y];                                                                      // 67
+}
+
+function speck_decrypt(x, y, key, n) {                                                // 69
+  _check(key, n, SPECK, x, y);                                                        // 70
+  const [a, b] = n === 16 ? [7, 2] : [8, 3], mask = (1n << BigInt(n)) - 1n;           // 71
+  for (const k of speck_round_keys(key, n).reverse()) {                               // 72
+    y = ror(x ^ y, b, n);                                                             // 73
+    x = rol(((x ^ k) - y) & mask, a, n);                                              // 74
+  }
+  return [x, y];                                                                      // 75
+}
+
+// Test vectors from Appendices B and C: (n, key words left-to-right, plaintext, ciphertext)   // 77
+const VECTORS = {                                                                     // 78
+ simon: [                                                                             // 79
+  [16, "1918 1110 0908 0100", "6565 6877", "c69b e9bb"],
+  [24, "121110 0a0908 020100", "612067 6e696c", "dae5ac 292cac"],
+  [24, "1a1918 121110 0a0908 020100", "726963 20646e", "6e06a5 acf156"],
+  [32, "13121110 0b0a0908 03020100", "6f722067 6e696c63", "5ca2e27f 111a8fc8"],
+  [32, "1b1a1918 13121110 0b0a0908 03020100", "656b696c 20646e75", "44c8fc20 b9dfa07a"],
+  [48, "0d0c0b0a0908 050403020100", "2072616c6c69 702065687420", "602807a462b4 69063d8ff082"],
+  [48, "151413121110 0d0c0b0a0908 050403020100", "746168742074 73756420666f", "ecad1c6c451e 3f59c5db1ae9"],
+  [64, "0f0e0d0c0b0a0908 0706050403020100", "6373656420737265 6c6c657661727420", "49681b1e1e54fe3f 65aa832af84e0bbc"],
+  [64, "1716151413121110 0f0e0d0c0b0a0908 0706050403020100", "206572656874206e 6568772065626972", "c4ac61effcdc0d4f 6c9c8d6e2597b85b"],
+  [64, "1f1e1d1c1b1a1918 1716151413121110 0f0e0d0c0b0a0908 0706050403020100", "74206e69206d6f6f 6d69732061207369", "8d2b5579afc8a3a0 3bf72a87efe7b868"]],
+ speck: [                                                                             // 90
+  [16, "1918 1110 0908 0100", "6574 694c", "a868 42f2"],
+  [24, "121110 0a0908 020100", "20796c 6c6172", "c049a5 385adc"],
+  [24, "1a1918 121110 0a0908 020100", "6d2073 696874", "735e10 b6445d"],
+  [32, "13121110 0b0a0908 03020100", "74614620 736e6165", "9f7952ec 4175946c"],
+  [32, "1b1a1918 13121110 0b0a0908 03020100", "3b726574 7475432d", "8c6fa548 454e028b"],
+  [48, "0d0c0b0a0908 050403020100", "65776f68202c 656761737520", "9e4d09ab7178 62bdde8f79aa"],
+  [48, "151413121110 0d0c0b0a0908 050403020100", "656d6974206e 69202c726576", "2bf31072228a 7ae440252ee6"],
+  [64, "0f0e0d0c0b0a0908 0706050403020100", "6c61766975716520 7469206564616d20", "a65d985179783265 7860fedf5c570d18"],
+  [64, "1716151413121110 0f0e0d0c0b0a0908 0706050403020100", "7261482066656968 43206f7420746e65", "1be4cf3a13135566 f9bc185de03c1886"],
+  [64, "1f1e1d1c1b1a1918 1716151413121110 0f0e0d0c0b0a0908 0706050403020100", "65736f6874206e49 202e72656e6f6f70", "4109010405c0f53e 4eeeb48d9c188f43"]]};
+
+// if __name__ == "__main__":  the test block. It returns one record per vector instead of printing.   // 102
+function run_tests() {
+  const ciphers = { simon: [simon_encrypt, simon_decrypt], speck: [speck_encrypt, speck_decrypt] };      // 103
+  const results = [];
+  for (const [name, [enc, dec]] of Object.entries(ciphers))                                              // 104
+    for (const [n, key, pt, ct] of VECTORS[name]) {                                                      // 105
+      const words = key.trim().split(/\s+/).map(w => BigInt("0x" + w)).reverse();     // -> [k0, k1, ...]   106
+      const [x, y] = pt.trim().split(/\s+/).map(w => BigInt("0x" + w));                                  // 107
+      const [cx, cy] = enc(x, y, words, n);                                                              // 108
+      const got = `${cx.toString(16).padStart(n / 4, "0")} ${cy.toString(16).padStart(n / 4, "0")}`;
+      const [dx, dy] = dec(cx, cy, words, n);
+      const ok = got === ct && dx === x && dy === y;                                                     // 109
+      const line = `${name.toUpperCase()}${2 * n}/${String(n * words.length).padEnd(4)} ${ok ? "OK" : "FAIL"}`;  // 110
+      results.push({ name, n, m: words.length, key, pt, ct, got, back: dx === x && dy === y, ok, line });
+    }
+  return results;
+}
+</script>
+<script id="trace-js">
+"use strict";
+// Instrumented copies of the loops in ref.py. They do the same arithmetic but also record every
+// intermediate value the page draws. checkTracers() confirms they agree with the plain functions.
+
+const MASK = n => (1n << BigInt(n)) - 1n;
+const speckAB = n => (n === 16 ? [7, 2] : [8, 3]);
+
+// simon_round_keys, lines 28-33
+function traceSimonKeys(key, n) {
+  const m = key.length, [T, j] = SIMON.get(`${n},${m}`), mask = MASK(n);
+  const k = [...key], iters = [];
+  for (let i = m; i < T; i++) {
+    const it = { i, km1: k[i - 1], kim: k[i - m] };
+    let tmp = ror(k[i - 1], 3, n);                       // 29
+    it.tmp29 = tmp;
+    if (m === 4) { it.km3 = k[i - 3]; tmp ^= k[i - 3]; it.tmp31 = tmp; }   // 30-31
+    it.pre32 = tmp; it.ror1 = ror(tmp, 1, n);
+    tmp ^= it.ror1;                                      // 32
+    it.tmp32 = tmp;
+    it.notk = ~k[i - m] & mask;                          // 33, term by term
+    it.zidx = (i - m) % 62;
+    it.zbit = BigInt(Z[j][it.zidx]);
+    it.out = it.notk ^ tmp ^ it.zbit ^ 3n;
+    k.push(it.out);
+    iters.push(it);
+  }
+  return { m, T, j, mask, k, iters };
+}
+
+// speck_round_keys, lines 56-58
+function traceSpeckKeys(key, n) {
+  const m = key.length, T = SPECK.get(`${n},${m}`), mask = MASK(n), [a, b] = speckAB(n);
+  const k = [key[0]], l = key.slice(1), iters = [];
+  for (let i = 0; i < T - 1; i++) {
+    const it = { i, ki: k[i], li: l[i] };
+    it.rorl = ror(l[i], a, n);                           // 57, piece by piece
+    it.sum = k[i] + it.rorl;
+    it.carries = it.sum ^ k[i] ^ it.rorl;                // bit p = carry into bit p
+    it.masked = it.sum & mask;
+    it.lnew = it.masked ^ BigInt(i);
+    l.push(it.lnew);
+    it.rolk = rol(k[i], b, n);                           // 58
+    it.knew = it.rolk ^ l[i + m - 1];
+    k.push(it.knew);
+    iters.push(it);
+  }
+  return { m, T, a, b, mask, k, l, iters };
+}
+
+// simon_encrypt, lines 40-41 (with simon_f, line 36, opened up)
+function traceSimonEnc(x, y, rk, n) {
+  return rk.map((k, idx) => {
+    const r = { r: idx + 1, k, x, y };
+    r.s1 = rol(x, 1, n); r.s8 = rol(x, 8, n); r.and = r.s1 & r.s8; r.s2 = rol(x, 2, n);
+    r.f = r.and ^ r.s2;
+    [x, y] = [y ^ r.f ^ k, x];
+    r.nx = x; r.ny = y;
+    return r;
+  });
+}
+
+// speck_encrypt, lines 64-66
+function traceSpeckEnc(x, y, rk, n) {
+  const [a, b] = speckAB(n), mask = MASK(n);
+  return rk.map((k, idx) => {
+    const r = { r: idx + 1, k, x, y };
+    r.rorx = ror(x, a, n); r.sum = r.rorx + y; r.carries = r.sum ^ r.rorx ^ y; r.masked = r.sum & mask;
+    x = r.masked ^ k; r.nx = x;                          // 65
+    r.roly = rol(y, b, n); y = r.roly ^ x; r.ny = y;     // 66
+    return r;
+  });
+}
+
+// simon_decrypt, lines 46-47
+function traceSimonDec(x, y, rk, n) {
+  const T = rk.length;
+  return [...rk].reverse().map((k, idx) => {
+    const s = { s: idx + 1, kidx: T - 1 - idx, k, x, y };
+    s.s1 = rol(y, 1, n); s.s8 = rol(y, 8, n); s.and = s.s1 & s.s8; s.s2 = rol(y, 2, n);
+    s.f = s.and ^ s.s2;
+    [x, y] = [y, x ^ s.f ^ k];
+    s.nx = x; s.ny = y;
+    return s;
+  });
+}
+
+// speck_decrypt, lines 72-74
+function traceSpeckDec(x, y, rk, n) {
+  const [a, b] = speckAB(n), mask = MASK(n), T = rk.length;
+  return [...rk].reverse().map((k, idx) => {
+    const s = { s: idx + 1, kidx: T - 1 - idx, k, x, y };
+    s.xy = x ^ y; y = ror(s.xy, b, n); s.ny = y;                       // 73
+    s.xk = x ^ k; s.diff = s.xk - y;                                   // 74, piece by piece
+    s.borrows = (s.diff & MASK(n + 1)) ^ s.xk ^ y;                     // bit p = borrow into bit p
+    s.masked = s.diff & mask;
+    x = rol(s.masked, a, n); s.nx = x;
+    return s;
+  });
+}
+
+// Fast whole-block helpers for chapters 10 and 11: same loops, round keys computed once.
+function statesWith(cipher, x, y, rk, n) {
+  const out = [[x, y]];
+  if (cipher === "simon") {
+    for (const k of rk) { [x, y] = [y ^ simon_f(x, n) ^ k, x]; out.push([x, y]); }
+  } else {
+    const [a, b] = speckAB(n), mask = MASK(n);
+    for (const k of rk) { x = ((ror(x, a, n) + y) & mask) ^ k; y = rol(y, b, n) ^ x; out.push([x, y]); }
+  }
+  return out;
+}
+function encryptWith(cipher, x, y, rk, n) {
+  if (cipher === "simon") {
+    for (const k of rk) [x, y] = [y ^ simon_f(x, n) ^ k, x];
+  } else {
+    const [a, b] = speckAB(n), mask = MASK(n);
+    for (const k of rk) { x = ((ror(x, a, n) + y) & mask) ^ k; y = rol(y, b, n) ^ x; }
+  }
+  return [x, y];
+}
+
+// Every tracer must reproduce the plain functions exactly, for all 20 test vectors.
+function checkTracers() {
+  const bad = [];
+  for (const cipher of ["simon", "speck"])
+    for (const [n, keyText, pt] of VECTORS[cipher]) {
+      const key = keyText.trim().split(/\s+/).map(w => BigInt("0x" + w)).reverse();
+      const [x, y] = pt.trim().split(/\s+/).map(w => BigInt("0x" + w));
+      const S = cipher === "simon";
+      const rk = S ? simon_round_keys(key, n) : speck_round_keys(key, n);
+      const tk = (S ? traceSimonKeys : traceSpeckKeys)(key, n).k;
+      const [cx, cy] = (S ? simon_encrypt : speck_encrypt)(x, y, key, n);
+      const enc = (S ? traceSimonEnc : traceSpeckEnc)(x, y, rk, n).at(-1);
+      const dec = (S ? traceSimonDec : traceSpeckDec)(cx, cy, rk, n).at(-1);
+      const fast = encryptWith(cipher, x, y, rk, n), st = statesWith(cipher, x, y, rk, n).at(-1);
+      const ok = tk.length === rk.length && tk.every((v, i) => v === rk[i]) &&
+        enc.nx === cx && enc.ny === cy && dec.nx === x && dec.ny === y &&
+        fast[0] === cx && fast[1] === cy && st[0] === cx && st[1] === cy;
+      if (!ok) bad.push(`${cipher.toUpperCase()}${2 * n}/${n * key.length}`);
+    }
+  return bad;
+}
+</script>
+<script id="app-js">
+(() => {
+"use strict";
+// ======================================================================================
+// Page code. Everything cryptographic comes from the translation above; this part only
+// draws it. Chapters render lazily and re-render when the inputs change.
+// ======================================================================================
+
+const REF = document.getElementById("ref-py").textContent;
+const LINES = REF.replace(/\n$/, "").split("\n");          // LINES[L - 1] is ref.py line L
+
+// ---------- small helpers ----------
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+const untag = s => String(s).replace(/<[^>]*>/g, "");
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const hexw = (v, n) => (v < 0n ? "-" : "") + (v < 0n ? -v : v).toString(16).padStart(Math.ceil(n / 4), "0");
+const hx = (v, n) => (v < 0n ? "-0x" + hexw(-v, n) : "0x" + hexw(v, n));
+const C = s => `<code>${esc(s)}</code>`;
+const sub = s => `<sub>${s}</sub>`;
+const vname = (cipher, n, m) => `${cipher.toUpperCase()}${2 * n}/${n * m}`;
+const popcount = v => { let k = 0; while (v) { v &= v - 1n; k++; } return k; };
+const plural = (k, w, ws = w + "s") => `${k} ${k === 1 ? w : ws}`;
+const binStr = (v, w) => (v & ((1n << BigInt(w)) - 1n)).toString(2).padStart(w, "0").replace(/\B(?=(\d{4})+$)/g, " ");
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+const darkMode = matchMedia("(prefers-color-scheme: dark)");
+const cssVar = (name, el = document.body) => getComputedStyle(el).getPropertyValue(name).trim();
+
+// Paper name and code name of key[idx] (code order).
+// SIMON: key[idx] = k_idx.  SPECK: key[0] = k_0 and key[idx] = l_(idx-1).
+const paperName = (cipher, idx) => (cipher === "simon" || idx === 0 ? `k${sub(idx)}` : `ℓ${sub(idx - 1)}`);
+const codeName = (cipher, idx) => (cipher === "simon" ? `k${idx}` : idx === 0 ? "k0" : `l${idx - 1}`);
+
+// ---------- bit strips ----------
+// A word drawn as cells, most significant bit on the left. Options:
+//   over  extra bits above n to draw (hatched: they lie outside the n-bit word)
+//   cols  total width in bits, so rows of different widths line up on the right
+//   diff  bits to outline (changed), mark  bits to underline, hit  one bit to ring
+//   acc   draw 1 bits in the accent colour (carry rows), click  make cells clickable
+function bits(v, n, o = {}) {
+  const w = n + (o.over || 0), cols = Math.max(o.cols || 0, w);
+  const diff = o.diff || 0n, mark = o.mark || 0n;
+  let h = "";
+  for (let col = 0; col < cols; col++) {
+    const p = cols - 1 - col, P = BigInt(p);
+    let cls = p >= w ? "sp" : (v >> P) & 1n ? "b1" : "b0";
+    if (p < w) {
+      if (p >= n) cls += " ov";
+      if ((diff >> P) & 1n) cls += " chg";
+      if ((mark >> P) & 1n) cls += " mk";
+      if (p === o.hit) cls += " hit";
+    }
+    if (col && (p + 1) % 4 === 0) cls += " nb";
+    h += `<i class="${cls}"${o.click && p < w ? ` data-bit="${p}"` : ""}></i>`;
+  }
+  const label = `${o.label ? o.label + " = " : ""}${hx(v, w)}, binary ${binStr(v, w)}`;
+  const cl = "bits" + (o.acc ? " acc" : "") + (o.click ? " click" : "") + (o.big ? " big" : "");
+  return `<div class="${cl}" style="--cols:${cols}" role="img" aria-label="${esc(label)}">${h}</div>`;
+}
+
+// A row of bit positions to sit above a group of strips.
+function ruler(n, cols = n) {
+  const step = n >= 32 ? 8 : 4;
+  let h = "";
+  for (let col = 0; col < cols; col++) {
+    const p = cols - 1 - col;
+    const show = p < n && (p % step === 0 || p === n - 1);
+    h += `<span${col && (p + 1) % 4 === 0 ? ' class="nb"' : ""}>${show ? p : ""}</span>`;
+  }
+  return `<div class="vrow rul" aria-hidden="true"><span class="op"></span><span class="vn"><span class="sub">bit position</span></span><span class="vb"><div class="ruler" style="--cols:${cols}">${h}</div></span><span class="vh"></span></div>`;
+}
+
+const OPS = { "^": ["⊕", "XOR"], "&": ["&", "AND"], "|": ["|", "OR"], "+": ["+", "plus"], "-": ["−", "minus"], "=": ["=", "gives"], "→": ["→", "becomes"], "~": ["~", "NOT"] };
+// One variable: [operator] [name + note] [bits] [hex].
+function row(name, v, n, o = {}) {
+  const op = o.op ? `<span aria-hidden="true">${OPS[o.op] ? OPS[o.op][0] : o.op}</span><span class="sr">${OPS[o.op] ? OPS[o.op][1] : ""}</span>` : "";
+  const cls = "vrow" + (o.res ? " res" : "") + (o.sep ? " sep" : "");
+  return `<div class="${cls}"><span class="op">${op}</span><span class="vn">${esc(name)}${o.sub ? `<span class="sub">${o.sub}</span>` : ""}</span>` +
+    `<span class="vb">${bits(v, n, { ...o, label: name })}</span><code class="vh">${o.hex ?? hx(v, n + (o.over || 0))}</code></div>`;
+}
+const vars = (...rows) => `<div class="vars">${rows.join("")}</div>`;
+const tag = t => `<span class="tag">${t}</span>`;
+const NONLIN = tag("the only nonlinear step");
+
+// ---------- Python code view ----------
+const KW = new Set("def return for in if not raise and or else elif while import from as is lambda None True False".split(" "));
+const BI = new Set("len list range int reversed print ValueError".split(" "));
+function hiPy(src) {
+  const re = /(#.*$)|(f?"(?:[^"\\]|\\.)*"|f?'(?:[^'\\]|\\.)*')|(\b\d+\b)|([A-Za-z_]\w*)|(\s+)|(.)/g;
+  let out = "", m, afterDef = false;
+  while ((m = re.exec(src))) {
+    const t = m[0];
+    if (m[1]) out += `<span class="tk-com">${esc(t)}</span>`;
+    else if (m[2]) out += `<span class="tk-str">${esc(t)}</span>`;
+    else if (m[3]) out += `<span class="tk-num">${esc(t)}</span>`;
+    else if (m[4]) {
+      const call = /^\s*\(/.test(src.slice(re.lastIndex));
+      const cls = KW.has(t) ? "kw" : BI.has(t) ? "bi" : afterDef || call ? "fn" : /^[A-Z][A-Z_]+$/.test(t) ? "const" : "";
+      out += cls ? `<span class="tk-${cls}">${esc(t)}</span>` : esc(t);
+      afterDef = t === "def";
+      continue;
+    } else out += esc(t);
+    if (!m[5]) afterDef = false;
+  }
+  return out;
+}
+function hiMarked(src, marks) {
+  if (!marks || !marks.length) return hiPy(src);
+  const spans = [];
+  for (const mk of [].concat(marks)) { const i = src.indexOf(mk); if (i >= 0) spans.push([i, i + mk.length]); }
+  spans.sort((a, b) => a[0] - b[0]);
+  let out = "", pos = 0;
+  for (const [a, b] of spans) { if (a < pos) continue; out += hiPy(src.slice(pos, a)) + `<mark>${hiPy(src.slice(a, b))}</mark>`; pos = b; }
+  return out + hiPy(src.slice(pos));
+}
+const asSet = v => (v instanceof Set ? v : new Set(v == null ? [] : [].concat(v)));
+const rangeText = ranges => ranges.map(([a, b]) => (a === b ? `${a}` : `${a}–${b}`)).join(", ");
+// ranges: [[from, to], ...] of ref.py line numbers. o.on / o.skip: lines to highlight / strike out.
+// o.marks: {line: text or [texts]} to outline inside a line.
+function codeView(ranges, o = {}) {
+  const on = asSet(o.on), skip = asSet(o.skip);
+  let h = "";
+  ranges.forEach(([a, b], idx) => {
+    if (idx) h += `<span class="ln gap" aria-hidden="true"><span class="no">⋮</span></span>`;
+    for (let L = a; L <= b; L++)
+      h += `<span class="ln${on.has(L) ? " on" : ""}${skip.has(L) ? " skip" : ""}" data-l="${L}"><span class="no">${L}</span><span class="src">${hiMarked(LINES[L - 1], o.marks && o.marks[L])}</span></span>`;
+  });
+  const label = o.label || `ref.py, ${ranges.length === 1 && ranges[0][0] === ranges[0][1] ? "line" : "lines"} ${rangeText(ranges)}`;
+  return `<div class="code" role="region" tabindex="0" aria-label="${esc(label)}"><pre>${h}</pre></div>`;
+}
+function setLines(root, on, skip) {
+  on = asSet(on); skip = asSet(skip);
+  let first = null;
+  for (const el of $$(".ln[data-l]", root)) {
+    const L = +el.dataset.l, isOn = on.has(L);
+    el.classList.toggle("on", isOn); el.classList.toggle("skip", skip.has(L));
+    if (isOn && !first) first = el;
+  }
+  const box = root.classList.contains("code") ? root : $(".code", root);
+  if (first && box && box.scrollHeight > box.clientHeight) {      // keep the line in view without moving the page
+    const top = first.offsetTop, bottom = top + first.offsetHeight;
+    if (top < box.scrollTop + 8 || bottom > box.scrollTop + box.clientHeight - 8) box.scrollTop = Math.max(0, top - box.clientHeight / 3);
+  }
+}
+
+// ---------- step-through debugger ----------
+// iters: [{label, steps: [{line, say, body, skip}]}]. The slider picks an iteration;
+// Previous / Next walk the steps and roll over into the neighbouring iteration.
+let uid = 0;
+const steppers = new Map();     // name -> Stepper; a re-render replaces the old one
+class Stepper {
+  constructor(host, cfg) {
+    this.cfg = cfg; this.timer = null; this.rangesKey = "";
+    this.it = cfg.pos ? cfg.pos.it : 0; this.st = cfg.pos ? cfg.pos.st : 0;   // cfg.pos survives re-renders
+    const id = "dbg" + ++uid;
+    host.innerHTML = `<div class="dbg">
+      <div class="dbg-bar">
+        <div class="dbg-slider"${cfg.noSlider ? " hidden" : ""}><label class="lbl" for="${id}">${cfg.label}</label>
+          <input id="${id}" type="range" min="0" step="1" value="0"><output for="${id}"></output></div>
+        <div class="dbg-btns" role="group" aria-label="Step controls">
+          <button type="button" class="btn" data-a="prev">◀ Previous</button>
+          <button type="button" class="btn" data-a="play" aria-pressed="false">▶ Play</button>
+          <button type="button" class="btn primary" data-a="next">Next ▶</button>
+        </div>
+        <span class="dbg-pos"></span>
+      </div>
+      <div class="dbg-code"></div>
+      <div class="dbg-step"><p class="say" aria-live="polite"></p><div class="dbg-body"></div></div>
+    </div>`;
+    const el = this.el = host.firstElementChild;
+    this.slider = $("input[type=range]", el); this.out = $("output", el); this.pos = $(".dbg-pos", el);
+    this.code = $(".dbg-code", el); this.say = $(".say", el); this.body = $(".dbg-body", el);
+    this.slider.addEventListener("input", () => { this.stop(); this.go(+this.slider.value, 0); });
+    el.addEventListener("click", e => {
+      const a = e.target.closest("[data-a]")?.dataset.a;
+      if (a === "prev") { this.stop(); this.step(-1); }
+      else if (a === "next") { this.stop(); this.step(1); }
+      else if (a === "play") this.timer ? this.stop() : this.play();
+    });
+    if (steppers.has(cfg.name)) steppers.get(cfg.name).stop();
+    steppers.set(cfg.name, this);
+  }
+  btn(a) { return $(`[data-a="${a}"]`, this.el); }
+  setIters(iters, ranges) {
+    this.iters = iters;
+    const key = JSON.stringify(ranges);
+    if (key !== this.rangesKey) { this.rangesKey = key; this.code.innerHTML = codeView(ranges, { label: this.cfg.codeLabel }); }
+    this.slider.max = iters.length - 1;
+    this.go(this.it, this.st);
+  }
+  go(it, st) {
+    this.it = clamp(it, 0, this.iters.length - 1);
+    const len = this.iters[this.it].steps.length;
+    this.st = st < 0 ? len - 1 : clamp(st, 0, len - 1);
+    this.update();
+  }
+  step(d) {
+    let { it, st } = this;
+    st += d;
+    if (st >= this.iters[it].steps.length) { if (it + 1 >= this.iters.length) return false; it++; st = 0; }
+    else if (st < 0) { if (it === 0) return false; it--; st = -1; }
+    this.go(it, st);
+    return true;
+  }
+  atEnd() { return this.it === this.iters.length - 1 && this.st === this.iters[this.it].steps.length - 1; }
+  play() {
+    if (this.atEnd()) this.go(0, 0);
+    this.timer = setInterval(() => { if (!this.step(1) || this.atEnd()) this.stop(); }, reduceMotion.matches ? 1800 : 1200);
+    this.btn("play").textContent = "❚❚ Pause"; this.btn("play").setAttribute("aria-pressed", "true");
+  }
+  stop() {
+    if (!this.timer) return;
+    clearInterval(this.timer); this.timer = null;
+    this.btn("play").textContent = "▶ Play"; this.btn("play").setAttribute("aria-pressed", "false");
+  }
+  update() {
+    const iter = this.iters[this.it], s = iter.steps[this.st];
+    this.slider.value = this.it; this.out.textContent = iter.label;
+    this.slider.setAttribute("aria-valuetext", iter.label);
+    this.pos.textContent = `Step ${this.st + 1} of ${iter.steps.length}`;
+    setLines(this.code, s.line, s.skip);
+    this.say.innerHTML = `<span class="lnref">line ${s.line}</span>${s.say}`;
+    this.body.innerHTML = s.body || "";
+    this.btn("prev").disabled = this.it === 0 && this.st === 0;
+    this.btn("next").disabled = this.atEnd();
+    if (this.cfg.pos) { this.cfg.pos.it = this.it; this.cfg.pos.st = this.st; }
+    if (this.cfg.onChange) this.cfg.onChange(this.it, this.st);
+  }
+}
+
+// ---------- state ----------
+// S holds exactly what the user supplies. key is in code order: [k0, k1, ...] / [k0, l0, l1, ...].
+const S = { cipher: "simon", n: 16, m: 4, key: [], x: 0n, y: 0n };
+let D = {};            // everything derived from S
+let version = 0;       // bumps on every change, so chapters know to re-render
+
+const splitHex = t => t.trim().split(/\s+/).map(w => BigInt("0x" + w));
+const vectorFor = (cipher, n, m) => VECTORS[cipher].find(v => v[0] === n && v[1].trim().split(/\s+/).length === m);
+function vectorState(cipher, n, m) {
+  const [, keyText, pt] = vectorFor(cipher, n, m);
+  const [x, y] = splitHex(pt);
+  return { cipher, n, m, key: splitHex(keyText).reverse(), x, y };
+}
+const paperKey = (key = S.key, n = S.n) => [...key].reverse().map(w => hexw(w, n)).join(" ");
+
+function derive() {
+  const { cipher, n, m, key, x, y } = S, simon = cipher === "simon";
+  D = { name: vname(cipher, n, m), mask: MASK(n) };
+  if (simon) [D.T, D.j] = SIMON.get(`${n},${m}`);
+  else { D.T = SPECK.get(`${n},${m}`); [D.a, D.b] = speckAB(n); }
+  D.ks = (simon ? traceSimonKeys : traceSpeckKeys)(key, n);
+  D.rk = (simon ? simon_round_keys : speck_round_keys)(key, n);          // the reference function itself
+  D.rounds = (simon ? traceSimonEnc : traceSpeckEnc)(x, y, D.rk, n);
+  [D.cx, D.cy] = (simon ? simon_encrypt : speck_encrypt)(x, y, key, n);
+  D.dec = (simon ? traceSimonDec : traceSpeckDec)(D.cx, D.cy, D.rk, n);
+  [D.px, D.py] = (simon ? simon_decrypt : speck_decrypt)(D.cx, D.cy, key, n);
+  D.states = [[x, y], ...D.rounds.map(r => [r.nx, r.ny])];             // D.states[r] = state after round r
+  const v = vectorFor(cipher, n, m), ref = vectorState(cipher, n, m);
+  D.vec = v;
+  D.isPaper = ref.x === x && ref.y === y && ref.key.every((w, i) => w === key[i]);
+  D.paperCt = splitHex(v[3]);
+}
+
+function setState(next) {
+  Object.assign(S, next);
+  derive();
+  version++;
+  refreshChrome();
+  if (cur >= 0) renderChapter(CH[cur], true);
+}
+
+// ---------- chapters & navigation ----------
+const CH = [
+  { id: "glance", title: "At a glance", gist: "What ref.py contains, how its parts fit together, and how to read the rest of this page.", render: renderGlance },
+  { id: "inputs", title: "Inputs", gist: "Choose a variant and its values, and see what every input to the functions means.", render: renderInputs },
+  { id: "check", title: "Checking the inputs", gist: "Every public function first calls _check, which rejects a variant or a value it cannot handle.", render: renderCheck },
+  { id: "rotations", title: "Rotations", gist: "rol and ror move every bit of a word around a circle; both ciphers rotate on almost every line.", render: renderRotations },
+  { id: "round-keys", title: "Round keys", gist: "The key schedule stretches the m key words into T round keys, one for each round.", render: renderRoundKeys },
+  { id: "one-round", title: "One round", gist: "One pass through the loop body of the encrypt function, split into its smallest operations.", render: renderOneRound },
+  { id: "all-rounds", title: "All rounds", gist: "The encrypt function runs that round T times; here is every state from plaintext to ciphertext.", render: renderAllRounds },
+  { id: "decryption", title: "Decryption", gist: "Decryption undoes the rounds one by one, using the round keys in reverse order, and ends on the plaintext.", render: renderDecryption },
+  { id: "testing", title: "Testing", gist: "The bottom of the file checks all 20 variants against the test vectors published in the paper.", render: renderTesting },
+  { id: "diffusion", title: "Why so many rounds?", gist: "Flip one plaintext bit and watch how many rounds it takes to disturb every bit of the block.", render: renderDiffusion },
+  { id: "modes", title: "More than one block", gist: "A block cipher encrypts one block; how you chain blocks together decides what leaks.", render: renderModes },
+  { id: "source", title: "Full source", gist: "All 110 lines of ref.py, with line numbers and syntax highlighting.", render: renderSource },
+];
+let cur = -1;
+
+function buildChapters() {
+  const host = $("#chapters");
+  CH.forEach((ch, i) => {
+    const sec = document.createElement("section");
+    sec.id = "ch-" + ch.id; sec.className = "chapter"; sec.hidden = true;
+    sec.setAttribute("aria-labelledby", "h-" + ch.id);
+    sec.innerHTML = `<header class="ch-head"><p class="ch-num">Chapter ${i + 1} of ${CH.length}</p><h2 id="h-${ch.id}" tabindex="-1">${esc(ch.title)}</h2><p class="gist">${ch.gist}</p></header><div class="ch-body"></div>`;
+    host.append(sec);
+    Object.assign(ch, { sec, body: $(".ch-body", sec), h2: $("h2", sec), v: -1 });
+  });
+  $("#toc").innerHTML = CH.map((ch, i) => `<li><a href="#${ch.id}" data-go="${ch.id}"><span class="num">${i + 1}</span><span>${esc(ch.title)}</span></a></li>`).join("");
+  $("#chSelect").innerHTML = CH.map((ch, i) => `<option value="${ch.id}">${i + 1}. ${esc(ch.title)}</option>`).join("");
+}
+
+function renderChapter(ch, keepFocus) {
+  const fid = keepFocus && document.activeElement && ch.sec.contains(document.activeElement) ? document.activeElement.id : null;
+  ch.render(ch.body);
+  ch.v = version;
+  if (fid && document.getElementById(fid)) document.getElementById(fid).focus({ preventScroll: true });
+}
+
+function go(target, { focus = true, push = true } = {}) {
+  const idx = typeof target === "number" ? target : CH.findIndex(ch => ch.id === target);
+  if (idx < 0) return;
+  steppers.forEach(s => s.stop());
+  if (idx !== cur) {
+    if (cur >= 0) CH[cur].sec.hidden = true;
+    cur = idx;
+    CH[idx].sec.hidden = false;
+  }
+  const ch = CH[idx];
+  if (ch.v !== version) renderChapter(ch);
+  else if (ch.redraw) ch.redraw();       // canvases size themselves to the visible width
+  $$("#toc a").forEach((a, i) => (i === idx ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
+  $("#chSelect").value = ch.id;
+  const prev = CH[idx - 1], next = CH[idx + 1], pb = $("#prevBtn"), nb = $("#nextBtn");
+  pb.hidden = !prev; nb.hidden = !next;
+  if (prev) pb.innerHTML = `<small>Previous</small>← ${idx}. ${esc(prev.title)}`;
+  if (next) nb.innerHTML = `<small>Next</small>${idx + 2}. ${esc(next.title)} →`;
+  document.title = `${idx + 1}. ${ch.title} · ref.py explained`;
+  if (push && location.hash !== "#" + ch.id) history.pushState(null, "", "#" + ch.id);
+  if (focus) { window.scrollTo(0, 0); ch.h2.focus({ preventScroll: true }); }
+}
+
+function refreshChrome() {
+  document.body.dataset.cipher = S.cipher;
+  const n = S.n;
+  $("#cardVariant").textContent = D.name;
+  $("#tbVariant").textContent = D.name;
+  $("#cardBody").innerHTML =
+    `<dt>Key</dt><dd>${paperKey()}</dd>` +
+    `<dt>Plaintext</dt><dd>${hexw(S.x, n)} ${hexw(S.y, n)}</dd>` +
+    `<dt>Ciphertext</dt><dd>${hexw(D.cx, n)} ${hexw(D.cy, n)}</dd>`;
+}
+
+// Links and buttons anywhere on the page can carry data-go="chapter-id".
+document.addEventListener("click", e => {
+  const g = e.target.closest("[data-go]");
+  if (!g) return;
+  e.preventDefault();
+  go(g.dataset.go);
+});
+// ======================================================================================
+// Chapter 1 · At a glance
+// ======================================================================================
+function chNum(id) {
+    return CH.findIndex((c) => c.id === id) + 1
+}
+function chLink(id) {
+    const i = chNum(id)
+    return `<a href="#${id}" data-go="${id}">${i}. ${esc(CH[i - 1].title)}</a>`
+}
+
+function renderGlance(el) {
+    const { cipher, n } = S,
+        w = (v) => hexw(v, n),
+        simon = cipher === 'simon'
+    let sn = 0
+    const box = (id, title, lines) =>
+        `<button type="button" class="step-btn" data-go="${id}"><b><span class="sn">${++sn}</span>${title}</b>${lines.map((l) => `<code>${l}</code>`).join('')}<span class="go">Chapter ${chNum(id)} →</span></button>`
+    const arrow = `<span class="arrow" aria-hidden="true">→</span>`
+    const map = [
+        [
+            '1–5',
+            "Z: five fixed 62-bit sequences that SIMON's key schedule mixes in",
+            'round-keys',
+        ],
+        [
+            '7–8',
+            'SIMON table: for each (n, m), the number of rounds T and which Z sequence j to use',
+            'inputs',
+        ],
+        [
+            '9–10',
+            'SPECK table: for each (n, m), the number of rounds T',
+            'inputs',
+        ],
+        [
+            '12–13',
+            'rol and ror: rotate an n-bit word left or right',
+            'rotations',
+        ],
+        [
+            '15–21',
+            "_check: reject unsupported variants and values that don't fit",
+            'check',
+        ],
+        [
+            '23–34',
+            'simon_round_keys: expand the key into T round keys',
+            'round-keys',
+        ],
+        ['36', "simon_f: SIMON's mixing function", 'one-round'],
+        ['38–42', 'simon_encrypt', 'all-rounds'],
+        ['44–48', 'simon_decrypt', 'decryption'],
+        ['50–59', 'speck_round_keys', 'round-keys'],
+        ['61–67', 'speck_encrypt', 'all-rounds'],
+        ['69–75', 'speck_decrypt', 'decryption'],
+        ['77–100', 'VECTORS: the 20 published test vectors', 'testing'],
+        [
+            '102–110',
+            'The test block that runs them when you execute the file',
+            'testing',
+        ],
+    ]
+    const sw = (v, w2, o = {}) => bits(v, w2, o)
+    el.innerHTML = `
+  <p class="lede">ref.py implements two families of <dfn>block ciphers</dfn> (a block cipher scrambles a fixed-size block of bits using a secret key, and the same key unscrambles it) from the 2013 NSA paper <i>The SIMON and SPECK Families of Lightweight Block Ciphers</i>. Each family has ten <dfn>variants</dfn> (pairs of block size and key size), and the file supports all twenty in about 75 lines of code.</p>
+  <div class="fams">
+    <div class="fam c-simon"><h4>SIMON</h4>
+      <p>A <dfn>Feistel cipher</dfn>: each round changes one half of the block using the other half, then swaps the halves. Its only nonlinear operation is bitwise AND. It was tuned for hardware.</p>
+      <ul><li>${C('simon_round_keys')} · lines 23–34</li><li>${C('simon_encrypt')} · lines 38–42</li><li>${C('simon_decrypt')} · lines 44–48</li><li>helper ${C('simon_f')} · line 36</li></ul></div>
+    <div class="fam c-speck"><h4>SPECK</h4>
+      <p>An <dfn>ARX cipher</dfn>: built only from Addition, Rotation and XOR. Its only nonlinear operation is addition. It was tuned for software.</p>
+      <ul><li>${C('speck_round_keys')} · lines 50–59</li><li>${C('speck_encrypt')} · lines 61–67</li><li>${C('speck_decrypt')} · lines 69–75</li></ul></div>
+  </div>
+  <p class="prose">Both families share the constant tables (lines 1–10), the rotation helpers ${C('rol')} and ${C('ror')} (12–13) and the validator ${C('_check')} (15–21). A test block at the bottom (lines 77–110) runs all 20 published test vectors when you execute the file with ${C('python3 ref.py')}.</p>
+
+  <h3>The pipeline, with your numbers</h3>
+  <p class="prose">This is what one call to ${C(cipher + '_encrypt')} and then ${C(cipher + '_decrypt')} does with the current inputs (${D.name}). Click a stage to open its chapter.</p>
+  <div class="pipe" role="list">
+    ${[
+        box('inputs', 'Inputs', [
+            `key ${paperKey()}`,
+            `x y = ${w(S.x)} ${w(S.y)}`,
+        ]),
+        box('check', '_check', ['both checks pass']),
+        box('round-keys', 'Round keys', [
+            `T = ${D.T} keys`,
+            `k[0] = ${w(D.rk[0])}`,
+            `k[${D.T - 1}] = ${w(D.rk[D.T - 1])}`,
+        ]),
+        box('one-round', `${D.T} rounds`, [
+            `after round 1: ${w(D.states[1][0])} ${w(D.states[1][1])}`,
+        ]),
+        box('all-rounds', 'Ciphertext', [
+            `${w(D.cx)} ${w(D.cy)}`,
+            D.isPaper ? 'matches the paper ✓' : 'your own inputs',
+        ]),
+        box('decryption', 'Decrypt back', [
+            `${w(D.px)} ${w(D.py)}`,
+            D.px === S.x && D.py === S.y ? '= plaintext ✓' : '≠ plaintext ✗',
+        ]),
+    ]
+        .map(
+            (b) => `<span role="listitem" style="display:contents">${b}</span>`,
+        )
+        .join(arrow)}
+  </div>
+
+  <h3>Map of the file</h3>
+  <div class="tbl"><table>
+    <thead><tr><th scope="col">Lines</th><th scope="col">What is there</th><th scope="col">Explained in</th></tr></thead>
+    <tbody>${map.map(([l, what, id]) => `<tr><td class="nowrap mono">${l}</td><td>${esc(what)}</td><td class="nowrap">${chLink(id)}</td></tr>`).join('')}</tbody>
+  </table></div>
+
+  <h3>How to read this page</h3>
+  <ul class="prose">
+    <li>Pick a cipher and its inputs in ${chLink('inputs')}. Every number on every page is computed live from them, in your browser.</li>
+    <li>Code excerpts use the same line numbers as ref.py. The highlighted line is the one being explained.</li>
+    <li>Chapters 3, 5, 6 and 8 are step-through debuggers. The slider picks a loop iteration; <b>Next</b> and <b>Previous</b> walk through the lines inside it; <b>Play</b> steps automatically.</li>
+    <li>Every value is drawn as a strip of bits, most significant bit on the left (the same order as the hex digits beside it).</li>
+    <li>Move between chapters with the list on the left, the buttons at the bottom, or the ← and → keys.</li>
+  </ul>
+
+  <h3>Colour legend</h3>
+  <ul class="legend">
+    <li><span class="sw">${sw(0xa5n, 8)}</span><span>A word, most significant bit first. Solid cells are 1s and pale cells are 0s, so this is <code>0xa5</code> = 1010 0101.</span></li>
+    <li><span class="sw">${sw(0xa5n, 8, { diff: 0x0fn })}</span><span>Outlined cells changed compared with the step's input.</span></li>
+    <li><span class="sw">${sw(0x1a5n, 8, { over: 1 })}</span><span>Hatched cells sit beyond the n-bit word; <code>&amp; mask</code> cuts them off.</span></li>
+    <li><span class="sw">${sw(0xa5n, 8, { mark: 0x07n })}</span><span>Underlined cells are bits that wrapped around in a rotation.</span></li>
+    <li><span class="sw">${sw(0x36n, 8, { acc: true })}</span><span>Coloured cells in a "carries" or "borrows" row mark where a carry or borrow happened.</span></li>
+    <li><span class="sw"><span class="sw-line"></span></span><span>The highlighted code line is the one being explained. A struck-through line is skipped this time.</span></li>
+    <li><span class="sw"><span class="sw-acc" style="background:var(--simon)"></span>&nbsp;<span class="sw-acc" style="background:var(--speck)"></span></span><span>Blue marks SIMON and orange marks SPECK. The whole page takes the colour of the cipher you pick.</span></li>
+    <li><span class="sw">${tag('nonlinear')}</span><span>Marks the one operation in each cipher that is not linear.</span></li>
+  </ul>
+
+  <h3>Words used on this page</h3>
+  <dl class="glossary">
+    <dt>bit, word</dt><dd>A bit is a 0 or a 1. A word is n bits handled as one number; n is 16, 24, 32, 48 or 64.</dd>
+    <dt>hex</dt><dd>Base 16. Each hex digit stands for exactly 4 bits, so a 16-bit word is 4 hex digits.</dd>
+    <dt>block</dt><dd>The unit the cipher encrypts: two words, x and y, so 2n bits.</dd>
+    <dt>key words</dt><dd>The secret key, split into m words of n bits each.</dd>
+    <dt>round, round key</dt><dd>A round is one pass of the same scrambling step. Each round mixes in its own round key, derived from the key.</dd>
+    <dt>XOR (⊕, <code>^</code>)</dt><dd>Bitwise "exclusive or": 1 where the two inputs differ. XOR with the same value twice cancels out.</dd>
+    <dt>AND (<code>&amp;</code>)</dt><dd>Bitwise "and": 1 only where both inputs are 1.</dd>
+    <dt>rotation</dt><dd>Shifting a word's bits left or right, with the bits that fall off one end coming back in at the other.</dd>
+    <dt>addition mod 2<sup>n</sup></dt><dd>Ordinary addition that throws away any carry out of the top bit, so the result still fits in n bits.</dd>
+    <dt>mask</dt><dd>A word with all n bits set (2<sup>n</sup> − 1). <code>v &amp; mask</code> keeps only the low n bits of v.</dd>
+    <dt>linear, nonlinear</dt><dd>XOR and rotation are linear: they can be undone and predicted with simple algebra. A cipher needs at least one nonlinear step, or it can be solved like a system of equations.</dd>
+    <dt>test vector</dt><dd>A published key, plaintext and correct ciphertext, used to check an implementation.</dd>
+  </dl>`
+}
+
+// ======================================================================================
+// Chapter 2 · Inputs
+// ======================================================================================
+let inputsMsg = null // {text, ok}: shown after the chapter re-renders
+const VARIANTS = [...SIMON.keys()].map((k) => k.split(',').map(Number)) // [[16,4], [24,3], ...]
+
+function wordField(id, label, value) {
+    return `<div class="field"><label for="${id}">${label}</label><input type="text" id="${id}" value="${value}" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="${id}-err"><p class="err" id="${id}-err" hidden></p></div>`
+}
+function showErr(inp, msg) {
+    const p = $('#' + inp.id + '-err')
+    p.hidden = !msg
+    p.textContent = msg || ''
+    inp.setAttribute('aria-invalid', msg ? 'true' : 'false')
+}
+function readWord(inp, n) {
+    const t = inp.value.trim().replace(/^0x/i, '').replace(/[\s_]/g, '')
+    let err = null,
+        v = null
+    if (!t)
+        err =
+            'Enter a value in hex, for example ' +
+            '1a2b3c4d5e6f7081'.slice(0, n / 4) +
+            '.'
+    else if (!/^[0-9a-f]+$/i.test(t)) err = 'Use hex digits only: 0–9 and a–f.'
+    else {
+        v = BigInt('0x' + t)
+        if (v >> BigInt(n))
+            err = `Too big for a ${n}-bit word. Use at most ${n / 4} hex digits; the largest allowed value is ${'f'.repeat(n / 4)}.`
+    }
+    showErr(inp, err)
+    return err ? null : v
+}
+function randomWord(n) {
+    const b = new Uint8Array(n / 8)
+    crypto.getRandomValues(b)
+    return b.reduce((acc, x) => (acc << 8n) | BigInt(x), 0n)
+}
+
+function renderInputs(el) {
+    const { cipher, n, m } = S,
+        simon = cipher === 'simon',
+        T = simon ? 'SIMON' : 'SPECK'
+    const keyOpts = VARIANTS.filter(([nn]) => nn === n).map(([, mm]) => mm)
+    const fields = []
+    for (let idx = m - 1; idx >= 0; idx--)
+        fields.push(
+            wordField(
+                `kw${idx}`,
+                `${paperName(cipher, idx)} <span class="hint">→ key[${idx}]</span>`,
+                hexw(S.key[idx], n),
+            ),
+        )
+    const [a, b] = speckAB(n),
+        [Ts, js] = SIMON.get(`${n},${m}`),
+        Tp = SPECK.get(`${n},${m}`)
+    const keyList = `[${S.key.map((v) => hx(v, n)).join(', ')}]`
+    const vt = `(${n}, "${D.vec[1]}", "${D.vec[2]}", "${D.vec[3]}")`
+    const tbl = (head, rows) =>
+        `<tr><th scope="colgroup" colspan="4">${head}</th></tr>` +
+        rows
+            .map(
+                (r) =>
+                    `<tr><td class="nowrap" data-label="Name in the code">${r[0]}</td><td data-label="What it is">${r[1]}</td><td data-label="Allowed values">${r[2]}</td><td class="mono" data-label="Your current value" style="word-break:break-all;font-size:.82rem">${r[3]}</td></tr>`,
+            )
+            .join('')
+    const sevenTen = { 7: [], 8: [], 9: [], 10: [] }
+    const simonEntry = `(${n}, ${m}): (${Ts}, ${js})`,
+        speckEntry = `(${n}, ${m}): ${Tp}`
+    const sLine = LINES[6].includes(simonEntry) ? 7 : 8,
+        pLine = LINES[8].includes(speckEntry) ? 9 : 10
+    sevenTen[sLine].push(simonEntry)
+    sevenTen[pLine].push(speckEntry)
+    const paperOrder = [...S.key.keys()].reverse()
+
+    el.innerHTML = `
+  <form id="inForm" class="panel" novalidate>
+    <div class="form-row">
+      <fieldset><legend>Cipher</legend><div class="seg">
+        <input type="radio" name="cipher" id="ciSimon" value="simon"${simon ? ' checked' : ''}><label for="ciSimon">SIMON</label>
+        <input type="radio" name="cipher" id="ciSpeck" value="speck"${simon ? '' : ' checked'}><label for="ciSpeck">SPECK</label>
+      </div></fieldset>
+      <div class="field"><label for="selBlock">Block size (2n)</label><select id="selBlock">${[16, 24, 32, 48, 64].map((nn) => `<option value="${nn}"${nn === n ? ' selected' : ''}>${2 * nn} bits (n = ${nn})</option>`).join('')}</select></div>
+      <div class="field"><label for="selKey">Key size (m·n)</label><select id="selKey">${keyOpts.map((mm) => `<option value="${mm}"${mm === m ? ' selected' : ''}>${mm * n} bits (m = ${mm})</option>`).join('')}</select></div>
+    </div>
+    <p class="muted" style="font-size:.85rem;margin-top:0">Changing the cipher, block size or key size loads that variant's test vector from the paper straight away.</p>
+    <fieldset><legend>Key words in the paper's order, most significant first (hex)</legend><div class="words">${fields.join('')}</div></fieldset>
+    <fieldset style="margin-top:.9rem"><legend>Plaintext block (hex)</legend><div class="words">
+      ${wordField('ptx', `x <span class="hint">left / high word</span>`, hexw(S.x, n))}
+      ${wordField('pty', `y <span class="hint">right / low word</span>`, hexw(S.y, n))}
+    </div></fieldset>
+    <div class="btn-row">
+      <button type="submit" class="btn primary" id="btnApply">Apply</button>
+      <button type="button" class="btn" id="btnPaper">Use the paper's test vector</button>
+      <button type="button" class="btn" id="btnRandom">Use random values</button>
+    </div>
+    <p class="status${inputsMsg ? (inputsMsg.ok ? ' ok' : ' bad') : ''}" id="inStatus" role="status">${inputsMsg ? esc(inputsMsg.text) : ''}</p>
+  </form>
+
+  <h3>Every input, explained</h3>
+  <p class="prose">The public functions all take the same four arguments, ${C(`${cipher}_encrypt(x, y, key, n)`)}. Everything else is derived from them inside the function.</p>
+  <div class="tbl stack"><table>
+    <thead><tr><th scope="col">Name in the code</th><th scope="col">What it is</th><th scope="col">Allowed values</th><th scope="col">Your current value</th></tr></thead>
+    <tbody>
+    ${tbl('You supply these', [
+        [
+            C('n'),
+            `Word size in bits. A block is two words, so 2n bits.`,
+            `16, 24, 32, 48 or 64`,
+            `${n} (block = ${2 * n} bits)`,
+        ],
+        [
+            C('key'),
+            `A Python list of m words, <b>least significant word first</b>. ${simon ? 'For SIMON it is <code>[k0, k1, …, k_{m−1}]</code>, and these words are also the first m round keys.' : 'For SPECK it is <code>[k0, l0, …, l_{m−2}]</code>: k0 is the first round key and the l words feed the key schedule.'} Key size is m·n bits.`,
+            `m words, each 0 ≤ w &lt; 2<sup>${n}</sup>`,
+            `${keyList}`,
+        ],
+        [
+            C('x'),
+            `The plaintext's left (high) word, written first in the paper. The function returns the ciphertext's left word in the same place.`,
+            `0 ≤ x &lt; 2<sup>${n}</sup>`,
+            hx(S.x, n),
+        ],
+        [
+            C('y'),
+            `The plaintext's right (low) word, written second. Returned as the ciphertext's right word.`,
+            `0 ≤ y &lt; 2<sup>${n}</sup>`,
+            hx(S.y, n),
+        ],
+    ])}
+    ${tbl('Derived inside the functions', [
+        [
+            C('m'),
+            `Number of key words, <code>len(key)</code> (lines 26, 53). Together with n it selects the variant.`,
+            `${keyOpts.join(' or ')} when n = ${n}`,
+            `${m} (key = ${m * n} bits)`,
+        ],
+        [
+            C('T'),
+            `Number of rounds, looked up in the ${C('SIMON')} table (line 26) or the ${C('SPECK')} table (line 53).`,
+            `22 to 72, depending on the variant`,
+            `${D.T}`,
+        ],
+        [
+            C('j'),
+            `Which Z constant sequence SIMON's key schedule uses, from the same table as T (line 26).`,
+            `0 to 4 (SIMON only)`,
+            simon
+                ? `${D.j}, so Z[${D.j}]`
+                : `not used by SPECK (SIMON would use ${js})`,
+        ],
+        [
+            `${C('a')}, ${C('b')}`,
+            `SPECK's rotation amounts, α and β in the paper (lines 54, 63, 71).`,
+            `(7, 2) if n = 16, otherwise (8, 3)`,
+            simon
+                ? `not used by SIMON (SPECK would use ${a}, ${b})`
+                : `${a}, ${b}`,
+        ],
+        [
+            C('mask'),
+            `2<sup>n</sup> − 1: all n bits set. <code>&amp; mask</code> keeps the low n bits, since Python integers never overflow on their own.`,
+            `<code>(1 &lt;&lt; n) − 1</code>`,
+            hx(D.mask, n),
+        ],
+        [
+            C('i'),
+            `Loop counter in the key schedule.`,
+            simon
+                ? `m to T − 1 (computes k[i])`
+                : `0 to T − 2 (computes l[i+m−1] and k[i+1])`,
+            simon ? `${m} … ${D.T - 1}` : `0 … ${D.T - 2}`,
+        ],
+        [
+            `${C('k')}, ${C('l')}, ${C('tmp')}`,
+            `Inside <code>*_round_keys</code>, <code>k</code> is the list of round keys being built, <code>l</code> is SPECK's list of extra key-schedule words and <code>tmp</code> is SIMON's scratch word. Inside the encrypt and decrypt loops, <code>k</code> is one round key.`,
+            `n-bit words`,
+            `see chapter 5`,
+        ],
+    ])}
+    ${tbl('Helper parameters', [
+        [
+            `${C('rol(v, r, n)')}<br>${C('ror(v, r, n)')}`,
+            `Rotate the n-bit word v left (rol) or right (ror) by r places.`,
+            `0 ≤ v &lt; 2<sup>n</sup>, 0 &lt; r &lt; n`,
+            `rol(x, 1, ${n}) = ${hx(rol(S.x, 1, n), n)}`,
+        ],
+        [
+            C('_check(words, n, table, *block)'),
+            `<code>words</code> is the key list, <code>n</code> the word size and <code>table</code> the SIMON or SPECK dict listing valid (n, m) pairs. <code>*block</code> collects any extra arguments (x and y) into a tuple so they are range-checked too.`,
+            `table is ${C('SIMON')} or ${C('SPECK')}`,
+            `_check(key, ${n}, ${T}, x, y) passes`,
+        ],
+        [
+            C('simon_f(v, n)'),
+            `SIMON's mixing function. v is the word being mixed: x when encrypting, y when decrypting.`,
+            `0 ≤ v &lt; 2<sup>n</sup>`,
+            `simon_f(x, ${n}) = ${hx(simon_f(S.x, n), n)}`,
+        ],
+        [
+            `${C('VECTORS')} entry`,
+            `A tuple <code>(n, key text, plaintext text, ciphertext text)</code>. The texts are hex words separated by spaces, in the paper's order (most significant word first).`,
+            `20 entries, one per variant`,
+            esc(vt),
+        ],
+    ])}
+    </tbody>
+  </table></div>
+
+  <h3>From the paper's order to the code's order</h3>
+  <p class="prose">The paper writes the key with the most significant word on the left. The code wants the least significant word first, so line 106 reverses the list with ${C('[::-1]')}. ${simon ? 'For SIMON, key[i] is k<sub>i</sub>.' : 'For SPECK, key[0] is k<sub>0</sub> and key[i] is ℓ<sub>i−1</sub>.'}</p>
+  <div class="rev" style="--m:${m}">
+    <div class="cap"><span>paper order (as typed above, and in VECTORS)</span></div>
+    <div class="rev-row">${paperOrder.map((idx) => `<div class="chip"><span class="nm">${paperName(cipher, idx)}</span><code>${hexw(S.key[idx], n)}</code></div>`).join('')}</div>
+    <svg viewBox="0 0 ${m * 100} 48" preserveAspectRatio="none" aria-hidden="true">${paperOrder.map((idx, pos) => `<line x1="${pos * 100 + 50}" y1="2" x2="${idx * 100 + 50}" y2="46" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/>`).join('')}</svg>
+    <div class="rev-row">${S.key.map((v, idx) => `<div class="chip code-order"><span class="nm">key[${idx}] = ${codeName(cipher, idx)}</span><code>${hexw(v, n)}</code></div>`).join('')}</div>
+    <div class="cap"><span>code order, after <code>[::-1]</code> on line 106</span></div>
+  </div>
+  ${codeView([[105, 108]], { on: 106, marks: { 106: '[::-1]' } })}
+  <p class="prose">With your inputs, line 106 turns ${C(`"${paperKey()}"`)} into ${C(`[${S.key.map((v) => hx(v, n)).join(', ')}]`)}, and line 107 reads x = ${hx(S.x, n)} and y = ${hx(S.y, n)}. The docstrings on lines 24 and 51 record the same rule:</p>
+  ${codeView(
+      [
+          [24, 24],
+          [51, 51],
+      ],
+      { on: simon ? 24 : 51 },
+  )}
+
+  <h3>The parameter tables</h3>
+  <p class="prose">Lines 7–10 list every supported (n, m) pair. The outlined entries are the ones your variant looks up.</p>
+  ${codeView([[7, 10]], { on: simon ? sLine : pLine, marks: sevenTen })}
+  <div class="tbl"><table>
+    <thead><tr><th scope="col">Block / key</th><th scope="col" class="num">n</th><th scope="col" class="num">m</th><th scope="col" class="num">SIMON T</th><th scope="col" class="num">SIMON j</th><th scope="col" class="num">SPECK T</th><th scope="col">SPECK (a, b)</th></tr></thead>
+    <tbody>${VARIANTS.map(([nn, mm]) => {
+        const [t, j] = SIMON.get(`${nn},${mm}`),
+            [aa, bb] = speckAB(nn),
+            curRow = nn === n && mm === m
+        return `<tr${curRow ? ' class="cur" aria-current="true"' : ''}><td class="nowrap">${2 * nn}/${nn * mm}${curRow ? ' <span class="sr">(your variant)</span>' : ''}</td><td class="num">${nn}</td><td class="num">${mm}</td><td class="num">${t}</td><td class="num">${j}</td><td class="num">${SPECK.get(`${nn},${mm}`)}</td><td>(${aa}, ${bb})</td></tr>`
+    }).join('')}</tbody>
+  </table></div>
+  <p class="prose">Inside the functions, these lines read the table and set up the derived values:</p>
+  ${codeView(simon ? [[26, 26]] : [[53, 54]], { on: simon ? 26 : [53, 54] })}`
+
+    inputsMsg = null // a message is shown once
+    // ---- events ----
+    const form = $('#inForm', el)
+    const loadVariant = (c, nn, mm, how) => {
+        inputsMsg = {
+            ok: true,
+            text: `Loaded the paper's test vector for ${vname(c, nn, mm)}${how || ''}.`,
+        }
+        setState(vectorState(c, nn, mm))
+    }
+    form.addEventListener('change', (e) => {
+        const t = e.target
+        if (t.name === 'cipher') loadVariant(t.value, n, m)
+        else if (t.id === 'selBlock') {
+            const nn = +t.value,
+                opts = VARIANTS.filter(([x]) => x === nn).map(([, x]) => x)
+            loadVariant(cipher, nn, opts.includes(m) ? m : opts[0])
+        } else if (t.id === 'selKey') loadVariant(cipher, n, +t.value)
+    })
+    form.addEventListener('input', (e) => {
+        if (e.target.getAttribute('aria-invalid') === 'true')
+            showErr(e.target, null)
+    })
+    form.addEventListener('submit', (e) => {
+        e.preventDefault()
+        const key = [],
+            bad = []
+        for (let idx = 0; idx < m; idx++) {
+            const inp = $('#kw' + idx, form),
+                v = readWord(inp, n)
+            if (v === null) bad.push(inp)
+            key.push(v)
+        }
+        const xi = $('#ptx', form),
+            yi = $('#pty', form),
+            x = readWord(xi, n),
+            y = readWord(yi, n)
+        if (x === null) bad.push(xi)
+        if (y === null) bad.push(yi)
+        if (bad.length) {
+            const first = [
+                ...form.querySelectorAll('input[aria-invalid=true]'),
+            ][0]
+            const st = $('#inStatus', form)
+            st.className = 'status bad'
+            st.textContent = `Nothing was applied: ${plural(bad.length, 'field needs', 'fields need')} fixing.`
+            first.focus()
+            return
+        }
+        const [cx, cy] = (cipher === 'simon' ? simon_encrypt : speck_encrypt)(
+            x,
+            y,
+            key,
+            n,
+        )
+        inputsMsg = {
+            ok: true,
+            text: `Applied. ${D.name} encrypts ${hexw(x, n)} ${hexw(y, n)} to ${hexw(cx, n)} ${hexw(cy, n)}.`,
+        }
+        setState({ key, x, y })
+    })
+    $('#btnPaper', el).addEventListener('click', () =>
+        loadVariant(cipher, n, m),
+    )
+    $('#btnRandom', el).addEventListener('click', () => {
+        inputsMsg = { ok: true, text: `Loaded random values for ${D.name}.` }
+        setState({
+            key: Array.from({ length: m }, () => randomWord(n)),
+            x: randomWord(n),
+            y: randomWord(n),
+        })
+    })
+}
+
+// ======================================================================================
+// Chapter 3 · Checking the inputs
+// ======================================================================================
+const checkUI = { demo: 'pass', custom: '' }
+
+function checkScenario() {
+    const { cipher, n, m, key, x, y } = S,
+        table = cipher === 'simon' ? SIMON : SPECK
+    let words = key,
+        block = [x, y],
+        title = 'Your inputs',
+        what = ''
+    if (checkUI.demo === 'count') {
+        const mm = [m - 1, m + 1, 1, 5].find(
+            (k) => k >= 1 && !table.has(`${n},${k}`),
+        )
+        words = mm < m ? key.slice(0, mm) : [...key, ...Array(mm - m).fill(0n)]
+        title = 'Wrong number of key words'
+        what =
+            mm < m
+                ? `the key loses its last ${plural(m - mm, 'word')}, leaving ${mm}`
+                : `${plural(mm - m, 'zero word')} ${mm - m === 1 ? 'is' : 'are'} added, making ${mm}`
+    } else if (checkUI.demo === 'big') {
+        block = [1n << BigInt(n), y]
+        title = 'Oversized word'
+        what = `x is replaced by 2<sup>${n}</sup> = ${hx(1n << BigInt(n), n)}, one more than the largest ${n}-bit value`
+    } else if (checkUI.demo === 'custom') {
+        block = [checkUI.customV, y]
+        title = 'Your own value for x'
+        what = `x is replaced by ${esc(pyHex(checkUI.customV))}`
+    }
+    let error = null
+    try {
+        _check(words, n, table, ...block)
+    } catch (e) {
+        error = e
+    }
+    return {
+        words,
+        block,
+        title,
+        what,
+        error,
+        table,
+        tname: cipher === 'simon' ? 'SIMON' : 'SPECK',
+    }
+}
+
+function checkIters(sc) {
+    const { n, cipher } = S,
+        { words, block, tname, table } = sc,
+        steps = []
+    const caller = cipher === 'simon' ? 39 : 62,
+        fn = cipher + '_encrypt'
+    const all = [...words, ...block],
+        labels = [...words.map((_, i) => `key[${i}]`), 'x', 'y']
+    const listTxt = `[${words.map((v) => hx(v, n)).join(', ')}]`
+    const lim = 1n << BigInt(n)
+    steps.push({
+        line: 15,
+        say: `Line ${caller} of ${C(fn)} calls ${C('_check')} with words = ${C(listTxt)}, n = ${n}, table = ${C(tname)} and *block = (${block.map((v) => esc(pyHex(v))).join(', ')}). The <code>*</code> gathers the extra arguments x and y into the tuple <code>block</code>.`,
+    })
+    steps.push({
+        line: 16,
+        say: `The docstring states the job: reject unsupported variants and values that don't fit in an n-bit word.`,
+    })
+    const inTable = table.has(`${n},${words.length}`)
+    steps.push({
+        line: 17,
+        say: `len(words) = ${words.length}, so the test is whether (${n}, ${words.length}) is a key of ${C(tname)}. ${inTable ? 'It is, so the condition is false and line 18 is skipped.' : 'It is not, so the condition is true.'}`,
+        body: `<div class="tbl"><table><thead><tr><th>(n, m) pairs in ${tname} with n = ${n}</th><th>matches (${n}, ${words.length})?</th></tr></thead><tbody>${VARIANTS.filter(
+            ([nn]) => nn === n,
+        )
+            .map(
+                ([nn, mm]) =>
+                    `<tr${mm === words.length ? ' class="cur"' : ''}><td class="mono">(${nn}, ${mm})</td><td>${mm === words.length ? '<span class="pass">yes</span>' : 'no'}</td></tr>`,
+            )
+            .join('')}</tbody></table></div>`,
+    })
+    if (!inTable) {
+        steps.push({
+            line: 18,
+            say: `Line 18 raises ${C('ValueError')}. Lines 19–21 never run.`,
+            skip: [19, 20, 21],
+            body: traceback(sc, 18),
+        })
+        return [{ label: sc.title, steps }]
+    }
+    steps.push({
+        line: 18,
+        skip: [18],
+        say: `Line 18 is skipped because the variant exists.`,
+    })
+    steps.push({
+        line: 19,
+        say: `The loop will look at ${plural(all.length, 'value')}: the ${words.length} key words, then the ${block.length} words of *block.`,
+        skip: [18],
+    })
+    const table2 = (upto) =>
+        `<div class="tbl"><table><thead><tr><th>v</th><th>value</th><th>0 ≤ v</th><th>v &lt; 2<sup>${n}</sup></th><th>result</th></tr></thead><tbody>${all
+            .map((v, i) => {
+                const done = i <= upto,
+                    ok = 0n <= v && v < lim
+                return `<tr${i === upto ? ' class="cur"' : ''}><td class="mono">${labels[i]}</td><td class="hex">${esc(pyHex(v))}</td><td>${done ? (0n <= v ? 'yes' : '<span class="fail">no</span>') : ''}</td><td>${done ? (v < lim ? 'yes' : '<span class="fail">no</span>') : ''}</td><td>${done ? (ok ? '<span class="pass">fits</span>' : '<span class="fail">does not fit</span>') : '<span class="muted">not checked yet</span>'}</td></tr>`
+            })
+            .join('')}</tbody></table></div>`
+    for (let i = 0; i < all.length; i++) {
+        const v = all[i],
+            ok = 0n <= v && v < lim
+        const over = v >= lim ? v.toString(2).length - n : 0
+        const strip =
+            v >= 0n
+                ? vars(
+                      row(labels[i], v, n, {
+                          over,
+                          sub: ok
+                              ? `fits in ${n} bits`
+                              : `needs ${v.toString(2).length} bits`,
+                      }),
+                  )
+                : ''
+        steps.push({
+            line: 20,
+            skip: [18],
+            say: `v = ${labels[i]} = ${esc(pyHex(v))}. Is 0 ≤ v &lt; 2<sup>${n}</sup> (${hx(lim, n + 1)})? ${ok ? 'Yes, so the loop moves on.' : v < 0n ? 'No: it is negative.' : 'No: it needs more than ' + n + ' bits.'}`,
+            body: strip + table2(i),
+        })
+        if (!ok) {
+            steps.push({
+                line: 21,
+                skip: [18],
+                say: `Line 21 raises ${C('ValueError')} and the loop stops early.`,
+                body: traceback(sc, 21),
+            })
+            return [{ label: sc.title, steps }]
+        }
+    }
+    steps.push({
+        line: 19,
+        skip: [18, 21],
+        say: `The loop has checked every value without raising, so ${C('_check')} returns ${C('None')} and line ${caller} carries on to encrypt.`,
+        body: `<pre class="out good">_check(...) returned None: the inputs are accepted.</pre>`,
+    })
+    return [{ label: sc.title, steps }]
+}
+
+function traceback(sc, line) {
+    const caller = S.cipher === 'simon' ? 39 : 62
+    return `<pre class="out bad">Traceback (most recent call last):
+  File "ref.py", line ${caller}, in ${S.cipher}_encrypt
+    ${esc(LINES[caller - 1].trim())}
+  File "ref.py", line ${line}, in _check
+    ${esc(LINES[line - 1].trim())}
+${esc(sc.error.name)}: ${esc(sc.error.message)}</pre>`
+}
+
+function renderCheck(el) {
+    const { cipher } = S,
+        callers = cipher === 'simon' ? '25, 39 and 45' : '52, 62 and 70'
+    const sc = checkScenario()
+    el.innerHTML = `
+  <p class="prose">${C('_check')} is the first line of all six public functions (for ${cipher.toUpperCase()}, lines ${callers}). It makes two checks and raises ${C('ValueError')} (Python's error for a value of the right type but the wrong size or content) if either fails:</p>
+  <ol class="prose"><li>Line 17: does the table list this (n, m) pair? Otherwise line 18 raises.</li><li>Lines 19–20: does every key word, and x and y, fit in n bits? Otherwise line 21 raises.</li></ol>
+  <div class="btn-row" role="group" aria-label="Choose what to check">
+    <button type="button" class="btn${checkUI.demo === 'pass' ? ' primary' : ''}" data-demo="pass" aria-pressed="${checkUI.demo === 'pass'}">Your inputs</button>
+    <button type="button" class="btn${checkUI.demo === 'count' ? ' primary' : ''}" data-demo="count" aria-pressed="${checkUI.demo === 'count'}">Wrong number of key words (line 18)</button>
+    <button type="button" class="btn${checkUI.demo === 'big' ? ' primary' : ''}" data-demo="big" aria-pressed="${checkUI.demo === 'big'}">Oversized word (line 21)</button>
+  </div>
+  <form class="btn-row" id="customForm" novalidate>
+    <div class="field" style="flex:0 1 22rem;margin:0"><label for="customX">Or try your own x (hex; may be negative)</label><input type="text" id="customX" value="${esc(checkUI.custom)}" placeholder="-5 or 1ffff" aria-describedby="customX-err" autocomplete="off" spellcheck="false"><p class="err" id="customX-err" hidden></p></div>
+    <button type="submit" class="btn" style="align-self:flex-end">Check it</button>
+  </form>
+  <p class="callout" id="checkSummary">${sc.what ? `Demo: ${sc.what}. ` : ''}${sc.error ? `Result: <b>${esc(sc.error.name)}: ${esc(sc.error.message)}</b> (raised on line ${sc.error.message.startsWith('unsupported') ? 18 : 21}).` : 'Result: both checks pass, so the function carries on.'}</p>
+  <div id="checkDbg"></div>
+  <p class="prose">The error messages above come from running the page's translation of ${C('_check')}. They match Python's output character for character, including Python's ${C('{v:#x}')} format, which writes negative numbers as <code>-0x5</code>.</p>`
+    const checkStepper = new Stepper($('#checkDbg', el), {
+        name: 'check',
+        label: 'Scenario',
+        noSlider: true,
+        codeLabel: 'ref.py lines 15–21, _check',
+    })
+    const iters = checkIters(sc)
+    checkStepper.setIters(iters, [[15, 21]])
+    if (sc.error) checkStepper.go(0, iters[0].steps.length - 1) // jump straight to the raising line
+
+    el.querySelectorAll('[data-demo]').forEach((b) =>
+        b.addEventListener('click', () => {
+            checkUI.demo = b.dataset.demo
+            renderChapter(CH[2])
+            $(`[data-demo="${checkUI.demo}"]`, el)?.focus()
+        }),
+    )
+    $('#customForm', el).addEventListener('submit', (e) => {
+        e.preventDefault()
+        const inp = $('#customX', el),
+            raw = inp.value.trim(),
+            neg = raw.startsWith('-')
+        const t = raw
+            .replace(/^-/, '')
+            .replace(/^0x/i, '')
+            .replace(/[\s_]/g, '')
+        if (!/^[0-9a-f]+$/i.test(t)) {
+            showErr(
+                inp,
+                'Use hex digits only, optionally with a leading minus sign.',
+            )
+            inp.focus()
+            return
+        }
+        checkUI.custom = raw
+        checkUI.customV = (neg ? -1n : 1n) * BigInt('0x' + t)
+        checkUI.demo = 'custom'
+        renderChapter(CH[2])
+        $('#customX', el)?.focus()
+    })
+    $('#customX', el).addEventListener('input', (e) => showErr(e.target, null))
+}
+
+// ======================================================================================
+// Chapter 4 · Rotations
+// ======================================================================================
+const rotUI = { fn: 'rol', r: 3, src: 'x' }
+
+function rotationBody() {
+    const n = S.n,
+        { fn, src } = rotUI,
+        r = clamp(rotUI.r, 1, n - 1),
+        R = BigInt(r),
+        N = BigInt(n)
+    const v = src === 'x' ? S.x : src === 'y' ? S.y : S.key[0],
+        mask = D.mask
+    const left = fn === 'rol'
+    const a = left ? v << R : v >> R,
+        b = left ? v >> (N - R) : v << (N - R),
+        or = a | b,
+        res = or & mask
+    const expect = (left ? rol : ror)(v, r, n)
+    const cols = left ? n + r : 2 * n - r
+    const wrapped = left ? (1n << R) - 1n : ((1n << R) - 1n) << (N - R)
+    const srcName = src === 'key0' ? 'key[0]' : src
+    const rows = left
+        ? [
+              row('v', v, n, { cols, sub: `${srcName}` }),
+              row('v << r', a, n, {
+                  cols,
+                  over: r,
+                  sub: `shift left by ${r}; ${r} zeros enter on the right`,
+              }),
+              row('v >> (n - r)', b, n, {
+                  cols,
+                  op: '|',
+                  sub: `shift right by n − r = ${n - r}; the top ${r} bits land at the bottom`,
+              }),
+              row('(v << r) | (v >> (n - r))', or, n, {
+                  cols,
+                  over: r,
+                  res: true,
+                  sub: `${r} hatched bits stick out past bit ${n - 1}`,
+              }),
+              row('(1 << n) - 1', mask, n, { cols, op: '&', sub: 'mask' }),
+              row(`rol(v, ${r}, ${n})`, res, n, {
+                  cols,
+                  res: true,
+                  mark: wrapped,
+                  sub: `underlined: the ${plural(r, 'bit')} that wrapped around`,
+              }),
+          ]
+        : [
+              row('v', v, n, { cols, sub: `${srcName}` }),
+              row('v >> r', a, n, {
+                  cols,
+                  sub: `shift right by ${r}; the low ${plural(r, 'bit')} fall off`,
+              }),
+              row('v << (n - r)', b, n, {
+                  cols,
+                  over: n - r,
+                  op: '|',
+                  sub: `shift left by n − r = ${n - r}; the low ${r} bits move to the top of the word`,
+              }),
+              row('(v >> r) | (v << (n - r))', or, n, {
+                  cols,
+                  over: n - r,
+                  res: true,
+                  sub: `${n - r} hatched bits stick out past bit ${n - 1}`,
+              }),
+              row('(1 << n) - 1', mask, n, { cols, op: '&', sub: 'mask' }),
+              row(`ror(v, ${r}, ${n})`, res, n, {
+                  cols,
+                  res: true,
+                  mark: wrapped,
+                  sub: `underlined: the ${plural(r, 'bit')} that wrapped around`,
+              }),
+          ]
+    const inv = (left ? ror : rol)(res, r, n)
+    return `<p class="say"><span class="lnref">line ${left ? 12 : 13}</span>${C(`${fn}(${hx(v, n)}, ${r}, ${n})`)} moves every bit ${r} ${r === 1 ? 'place' : 'places'} to the ${left ? 'left' : 'right'}; the ${plural(r, 'bit')} pushed off the ${left ? 'top' : 'bottom'} come back in at the ${left ? 'bottom' : 'top'}.</p>
+    <div class="wide-scroll">${vars(ruler(n, cols), ...rows)}</div>
+    <p class="note">${res === expect ? "✓ Same as calling the page's translation of " + C(fn) + '.' : '✗ Mismatch with ' + C(fn) + '.'} Rotating back with ${C(`${left ? 'ror' : 'rol'}(…, ${r}, ${n})`)} gives ${hx(inv, n)}${inv === v ? ', the original v: a rotation loses nothing.' : '.'}</p>`
+}
+
+function renderRotations(el) {
+    const n = S.n
+    rotUI.r = clamp(rotUI.r, 1, n - 1)
+    const places = [
+        [29, 'ror(k[i - 1], 3, n)', 'ror', '3', 'SIMON key schedule'],
+        [32, 'ror(tmp, 1, n)', 'ror', '1', 'SIMON key schedule'],
+        [36, 'rol(v, 1, n)', 'rol', '1', 'SIMON f (encrypt and decrypt)'],
+        [36, 'rol(v, 8, n)', 'rol', '8', 'SIMON f'],
+        [36, 'rol(v, 2, n)', 'rol', '2', 'SIMON f'],
+        [
+            57,
+            'ror(l[i], a, n)',
+            'ror',
+            `a = ${speckAB(n)[0]}`,
+            'SPECK key schedule',
+        ],
+        [
+            58,
+            'rol(k[i], b, n)',
+            'rol',
+            `b = ${speckAB(n)[1]}`,
+            'SPECK key schedule',
+        ],
+        [65, 'ror(x, a, n)', 'ror', `a = ${speckAB(n)[0]}`, 'SPECK encrypt'],
+        [66, 'rol(y, b, n)', 'rol', `b = ${speckAB(n)[1]}`, 'SPECK encrypt'],
+        [
+            73,
+            'ror(x ^ y, b, n)',
+            'ror',
+            `b = ${speckAB(n)[1]}`,
+            'SPECK decrypt (undoes line 66)',
+        ],
+        [
+            74,
+            'rol(…, a, n)',
+            'rol',
+            `a = ${speckAB(n)[0]}`,
+            'SPECK decrypt (undoes line 65)',
+        ],
+    ]
+    el.innerHTML = `
+  <p class="prose">A <dfn>shift</dfn> moves bits and throws away the ones that fall off the end. A <dfn>rotation</dfn> moves bits around a circle instead, so nothing is lost. Python has no rotate operator, so lines 12–13 build one from two shifts, an OR and a mask:</p>
+  ${codeView([[12, 13]], { on: rotUI.fn === 'rol' ? 12 : 13 })}
+  <div class="panel">
+    <div class="form-row" style="margin-top:0">
+      <fieldset><legend>Function</legend><div class="seg">
+        <input type="radio" name="rotfn" id="rfRol" value="rol"${rotUI.fn === 'rol' ? ' checked' : ''}><label for="rfRol">rol (left)</label>
+        <input type="radio" name="rotfn" id="rfRor" value="ror"${rotUI.fn === 'ror' ? ' checked' : ''}><label for="rfRor">ror (right)</label>
+      </div></fieldset>
+      <div class="field"><label for="rotR">Amount r: <span id="rotRout" class="mono">${rotUI.r}</span></label><input type="range" id="rotR" min="1" max="${n - 1}" value="${rotUI.r}"></div>
+      <div class="field"><label for="rotSrc">Word to rotate (v)</label><select id="rotSrc">
+        <option value="x"${rotUI.src === 'x' ? ' selected' : ''}>x = ${hx(S.x, n)}</option>
+        <option value="y"${rotUI.src === 'y' ? ' selected' : ''}>y = ${hx(S.y, n)}</option>
+        <option value="key0"${rotUI.src === 'key0' ? ' selected' : ''}>key[0] = ${hx(S.key[0], n)}</option></select></div>
+    </div>
+    <div id="rotOut">${rotationBody()}</div>
+  </div>
+  <p class="prose">Why the mask? Python integers grow as needed and never overflow, so ${C('v << r')} really is n + r bits long. ${C('& ((1 << n) - 1)')} keeps only the low n bits, which is what a fixed-size n-bit register would do on its own.</p>
+
+  <h3>Every rotation in ref.py</h3>
+  <p class="prose">With n = ${n}. Choose "Try it" to load a row into the demo above.</p>
+  <div class="tbl stack"><table>
+    <thead><tr><th scope="col">Line</th><th scope="col">Code</th><th scope="col">Direction</th><th scope="col">By</th><th scope="col">Where</th><th scope="col"><span class="sr">Action</span></th></tr></thead>
+    <tbody>${places.map(([l, code, fn, by, where]) => `<tr><td class="num" data-label="Line">${l}</td><td data-label="Code">${C(code)}</td><td data-label="Direction">${fn === 'rol' ? 'left' : 'right'}</td><td class="nowrap" data-label="By">${by}</td><td data-label="Where">${where}</td><td><button type="button" class="btn small" data-try="${fn},${by.replace(/\D/g, '')},${l}">Try it</button></td></tr>`).join('')}</tbody>
+  </table></div>`
+
+    const redraw = () => {
+        $('#rotOut', el).innerHTML = rotationBody()
+        setLines(el, rotUI.fn === 'rol' ? 12 : 13)
+        $('#rotRout', el).textContent = rotUI.r
+    }
+    $('.panel', el).addEventListener('change', (e) => {
+        if (e.target.name === 'rotfn') {
+            rotUI.fn = e.target.value
+            redraw()
+        }
+        if (e.target.id === 'rotSrc') {
+            rotUI.src = e.target.value
+            redraw()
+        }
+    })
+    $('#rotR', el).addEventListener('input', (e) => {
+        rotUI.r = +e.target.value
+        redraw()
+    })
+    el.querySelectorAll('[data-try]').forEach((b) =>
+        b.addEventListener('click', () => {
+            const [fn, r] = b.dataset.try.split(',')
+            rotUI.fn = fn
+            rotUI.r = clamp(+r, 1, n - 1)
+            $('#rotR', el).value = rotUI.r
+            $(fn === 'rol' ? '#rfRol' : '#rfRor', el).checked = true
+            redraw()
+            $('#rotOut', el)
+                .closest('.panel')
+                .scrollIntoView({
+                    behavior: reduceMotion.matches ? 'auto' : 'smooth',
+                    block: 'start',
+                })
+        }),
+    )
+}
+// ======================================================================================
+// Chapter 5 · Round keys
+// ======================================================================================
+const ksPos = { it: 1, st: 0 }
+const lowBits = (r) => (1n << BigInt(r)) - 1n
+const highBits = (r, n) => lowBits(r) << BigInt(n - r)
+const keyRows = (n, cipher) =>
+    S.key.map((v, i) =>
+        row(`key[${i}]`, v, n, { sub: `${paperName(cipher, i)} in the paper` }),
+    )
+
+function simonKeyIters() {
+    const n = S.n,
+        t = D.ks,
+        { m, T, j, mask } = t,
+        c = (1n << BigInt(n)) - 4n
+    const list = `[${S.key.map((v) => hx(v, n)).join(', ')}]`
+    const iters = [
+        {
+            label: 'setup',
+            steps: [
+                {
+                    line: 23,
+                    say: `${C('simon_round_keys')} is called with key = ${C(list)} and n = ${n}.`,
+                    body: vars(ruler(n), ...keyRows(n, 'simon')),
+                },
+                {
+                    line: 24,
+                    say: `The docstring fixes the word order: key[0] is k<sub>0</sub>, the rightmost word of the key as the paper prints it.`,
+                },
+                {
+                    line: 25,
+                    say: `${C('_check')} confirms that (${n}, ${m}) is a SIMON variant and that every key word fits in ${n} bits (see chapter 3).`,
+                },
+                {
+                    line: 26,
+                    say: `m = len(key) = ${m}. SIMON[(${n}, ${m})] = (${T}, ${j}), so T = ${T} rounds and the constant sequence is Z[${j}]. mask = 2<sup>${n}</sup> − 1 = ${hx(mask, n)}.`,
+                },
+                {
+                    line: 27,
+                    say: `k starts as a copy of the key, so the first m = ${m} round keys, k[0] to k[${m - 1}], are the key words themselves. The loop computes the other ${T - m}.`,
+                    body: vars(
+                        ruler(n),
+                        ...S.key.map((v, i) =>
+                            row(`k[${i}]`, v, n, { sub: `= key[${i}]` }),
+                        ),
+                    ),
+                },
+            ],
+        },
+    ]
+    for (const it of t.iters) {
+        const i = it.i,
+            skip = m === 4 ? [] : [31]
+        const zRow = row(`Z[${j}]`, BigInt('0b' + Z[j]), 62, {
+            hit: 61 - it.zidx,
+            hex: `index ${it.zidx}`,
+            sub: `the 62-bit sequence, read left to right; the ringed bit is index ${it.zidx}`,
+        })
+        const tmpSoFar = vars(
+            row('tmp after line 29', it.tmp29, n),
+            row(
+                m === 4 ? 'tmp after line 31' : 'tmp after line 31 (skipped)',
+                m === 4 ? it.tmp31 : it.tmp29,
+                n,
+            ),
+            row('tmp after line 32', it.tmp32, n),
+        )
+        const steps = [
+            {
+                line: 28,
+                say: `Iteration i = ${i} builds round key k[${i}]. It reads k[i-1] = k[${i - 1}]${m === 4 ? `, k[i-3] = k[${i - 3}]` : ''} and k[i-m] = k[${i - m}].`,
+                body: vars(
+                    ruler(n),
+                    row(`k[i-1] = k[${i - 1}]`, it.km1, n, {
+                        sub: 'the previous round key',
+                    }),
+                    ...(m === 4
+                        ? [row(`k[i-3] = k[${i - 3}]`, it.km3, n)]
+                        : []),
+                    row(`k[i-m] = k[${i - m}]`, it.kim, n, {
+                        sub: `the key from m = ${m} places back`,
+                    }),
+                ),
+            },
+            {
+                line: 29,
+                say: `tmp = ror(k[i-1], 3, n) rotates k[i-1] = k[${i - 1}] right by 3 bits.`,
+                body: vars(
+                    ruler(n),
+                    row(`k[i-1] = k[${i - 1}]`, it.km1, n),
+                    row('tmp', it.tmp29, n, {
+                        res: true,
+                        mark: highBits(3, n),
+                        sub: 'after line 29; underlined bits wrapped round',
+                    }),
+                ),
+            },
+            {
+                line: 30,
+                say:
+                    m === 4
+                        ? `m is 4, so the test m == 4 is true and line 31 runs.`
+                        : `m is ${m}, so the test m == 4 is false and line 31 will be skipped.`,
+            },
+            m === 4
+                ? {
+                      line: 31,
+                      say: `tmp ^= k[i-3] XORs in k[i-3] = k[${i - 3}]. Only 4-word keys do this; it lets the extra key word feed into the schedule.`,
+                      body: vars(
+                          ruler(n),
+                          row('tmp', it.tmp29, n, { sub: 'after line 29' }),
+                          row(`k[i-3] = k[${i - 3}]`, it.km3, n, { op: '^' }),
+                          row('tmp', it.tmp31, n, {
+                              res: true,
+                              diff: it.tmp29 ^ it.tmp31,
+                              sub: 'after line 31; outlined bits changed',
+                          }),
+                      ),
+                  }
+                : {
+                      line: 31,
+                      skip,
+                      say: `Line 31 is skipped. It only runs for 4-word keys, and this key has m = ${m} words, so tmp keeps its value from line 29.`,
+                      body: vars(
+                          ruler(n),
+                          row('tmp', it.tmp29, n, {
+                              sub: 'unchanged since line 29',
+                          }),
+                      ),
+                  },
+            {
+                line: 32,
+                skip,
+                say: `tmp ^= ror(tmp, 1, n) XORs tmp with a copy of itself rotated right by one more bit.`,
+                body:
+                    vars(
+                        ruler(n),
+                        row('tmp', it.pre32, n, {
+                            sub: m === 4 ? 'after line 31' : 'after line 29',
+                        }),
+                        row('ror(tmp, 1, n)', it.ror1, n, { op: '^' }),
+                        row('tmp', it.tmp32, n, {
+                            res: true,
+                            diff: it.pre32 ^ it.tmp32,
+                            sub: 'after line 32; outlined bits changed',
+                        }),
+                    ) +
+                    `<h4>tmp after each line</h4>` +
+                    tmpSoFar,
+            },
+            {
+                line: 33,
+                skip,
+                say: `Line 33 XORs four terms to make the new round key k[${i}]: k[i-m] = k[${i - m}] with every bit flipped, tmp, bit ${it.zidx} of Z[${j}], and the constant 3.`,
+                body:
+                    vars(
+                        ruler(n),
+                        row(`k[i-m] = k[${i - m}]`, it.kim, n, {
+                            sub: 'before flipping',
+                        }),
+                        row('~k[i-m] & mask', it.notk, n, {
+                            sep: true,
+                            sub: '~ flips every bit; & mask keeps n of them',
+                        }),
+                        row('tmp', it.tmp32, n, { op: '^' }),
+                        row(`int(Z[${j}][${it.zidx}])`, it.zbit, n, {
+                            op: '^',
+                            sub: `(i-m) % 62 = (${i}-${m}) % 62 = ${it.zidx}`,
+                        }),
+                        row('3', 3n, n, { op: '^' }),
+                        row(`k[${i}]`, it.out, n, {
+                            res: true,
+                            sub: 'appended to k',
+                        }),
+                    ) +
+                    `<h4>Where the Z bit comes from</h4>` +
+                    `<div class="wide-scroll">${vars(zRow)}</div>`,
+            },
+            {
+                line: 33,
+                skip,
+                say: `Why the ~ and the 3? (~k[i-m] &amp; mask) ^ 3 is the same as k[i-m] ^ c, where c = 2<sup>n</sup> − 4 = ${hx(c, n)} is the constant written in the paper.`,
+                body:
+                    vars(
+                        ruler(n),
+                        row('~k[i-m] & mask', it.notk, n),
+                        row('3', 3n, n, { op: '^' }),
+                        row('(~k[i-m] & mask) ^ 3', it.notk ^ 3n, n, {
+                            res: true,
+                        }),
+                        row(`k[i-m] = k[${i - m}]`, it.kim, n, { sep: true }),
+                        row('c = 2**n - 4', c, n, { op: '^' }),
+                        row('k[i-m] ^ c', it.kim ^ c, n, { res: true }),
+                    ) +
+                    `<p class="${(it.notk ^ 3n) === (it.kim ^ c) ? 'match' : 'match no'}">${(it.notk ^ 3n) === (it.kim ^ c) ? '✓ The two results are equal.' : '✗ The results differ.'}</p>` +
+                    `<p class="note">Flipping every bit with ${C('~v & mask')} is the same as ${C('v ^ mask')}. XOR with 3 flips the lowest two bits back again. Together that is v ^ (mask ^ 3), and mask ^ 3 = 2<sup>n</sup> − 1 − 3 = 2<sup>n</sup> − 4 = c. The paper writes the key schedule as k<sub>i</sub> = c ⊕ (z<sub>j</sub>)<sub>i−m</sub> ⊕ k<sub>i−m</sub> ⊕ (I ⊕ S<sup>−1</sup>)(…); the code writes the same thing with ~ and 3.</p>`,
+            },
+        ]
+        iters.push({ label: `i = ${i} → k[${i}]`, steps })
+    }
+    iters.push({
+        label: 'return',
+        steps: [
+            {
+                line: 34,
+                say: `The loop has filled k[0] to k[${T - 1}], so the function returns all T = ${T} round keys. The full list is in the table below.`,
+                body: vars(
+                    ruler(n),
+                    row('k[0]', D.rk[0], n, { sub: 'first' }),
+                    row(`k[${T - 1}]`, D.rk[T - 1], n, { sub: 'last' }),
+                ),
+            },
+        ],
+    })
+    return iters
+}
+
+function speckKeyIters() {
+    const n = S.n,
+        t = D.ks,
+        { m, T, a, b, mask } = t
+    const list = `[${S.key.map((v) => hx(v, n)).join(', ')}]`
+    const iters = [
+        {
+            label: 'setup',
+            steps: [
+                {
+                    line: 50,
+                    say: `${C('speck_round_keys')} is called with key = ${C(list)} and n = ${n}.`,
+                    body: vars(ruler(n), ...keyRows(n, 'speck')),
+                },
+                {
+                    line: 51,
+                    say: `The docstring fixes the word order: key[0] is k<sub>0</sub> and the rest are ℓ<sub>0</sub>, ℓ<sub>1</sub>, …, with k<sub>0</sub> rightmost in the paper's printout.`,
+                },
+                {
+                    line: 52,
+                    say: `${C('_check')} confirms that (${n}, ${m}) is a SPECK variant and that every key word fits in ${n} bits (see chapter 3).`,
+                },
+                {
+                    line: 53,
+                    say: `m = len(key) = ${m}. SPECK[(${n}, ${m})] = ${T}, so T = ${T} rounds. mask = 2<sup>${n}</sup> − 1 = ${hx(mask, n)}.`,
+                },
+                {
+                    line: 54,
+                    say: `n is ${n}, so the rotation amounts are a = ${a} and b = ${b}${n === 16 ? ' (the 32-bit block uses smaller rotations)' : ''}.`,
+                },
+                {
+                    line: 55,
+                    say: `k = [key[0]] holds the first round key. l = key[1:] holds the other ${plural(m - 1, 'key word')}, which never become round keys themselves: they only feed the schedule.`,
+                    body: vars(
+                        ruler(n),
+                        row('k[0]', S.key[0], n, { sub: '= key[0] = k0' }),
+                        ...S.key
+                            .slice(1)
+                            .map((v, i) =>
+                                row(`l[${i}]`, v, n, {
+                                    sub: `= key[${i + 1}] = ℓ${sub(i)}`,
+                                }),
+                            ),
+                    ),
+                },
+            ],
+        },
+    ]
+    for (const it of t.iters) {
+        const i = it.i,
+            li = i + m - 1,
+            cols = n + 1
+        iters.push({
+            label: `i = ${i} → k[${i + 1}]`,
+            steps: [
+                {
+                    line: 56,
+                    say: `Iteration i = ${i} makes l[i+m-1] = l[${li}] and k[i+1] = k[${i + 1}]. Lines 57–58 are SPECK's own round function, with the counter i in place of a round key.`,
+                    body: vars(
+                        ruler(n),
+                        row(`k[i] = k[${i}]`, it.ki, n),
+                        row(`l[i] = l[${i}]`, it.li, n),
+                    ),
+                },
+                {
+                    line: 57,
+                    say: `First, ror(l[i], a, n) rotates l[i] = l[${i}] right by a = ${a}.`,
+                    body: vars(
+                        ruler(n),
+                        row(`l[i] = l[${i}]`, it.li, n),
+                        row('ror(l[i], a, n)', it.rorl, n, {
+                            res: true,
+                            mark: highBits(a, n),
+                            sub: 'underlined bits wrapped round',
+                        }),
+                    ),
+                },
+                {
+                    line: 57,
+                    say: `Then k[i] = k[${i}] is added to it. The sum can need ${n + 1} bits, so & mask drops the carry out of the top. ${NONLIN}`,
+                    body: vars(
+                        ruler(n, cols),
+                        row(`k[i] = k[${i}]`, it.ki, n, { cols }),
+                        row('ror(l[i], a, n)', it.rorl, n, { cols, op: '+' }),
+                        row('carries', it.carries, n, {
+                            cols,
+                            over: 1,
+                            acc: true,
+                            sub: 'a coloured cell is a carry into that bit',
+                        }),
+                        row('k[i] + ror(l[i], a, n)', it.sum, n, {
+                            cols,
+                            over: 1,
+                            res: true,
+                            sub:
+                                it.sum >> BigInt(n)
+                                    ? 'the hatched top bit is the carry out'
+                                    : 'no carry out of the top this time',
+                        }),
+                        row('(…) & mask', it.masked, n, { cols, res: true }),
+                    ),
+                },
+                {
+                    line: 57,
+                    say: `^ i XORs in the counter i = ${i}, and l.append stores the result as l[${li}].`,
+                    body: vars(
+                        ruler(n),
+                        row('(k[i] + ror(l[i], a, n)) & mask', it.masked, n),
+                        row('i', BigInt(i), n, { op: '^' }),
+                        row(`l[${li}]`, it.lnew, n, {
+                            res: true,
+                            diff: it.masked ^ it.lnew,
+                            sub: 'appended to l',
+                        }),
+                    ),
+                },
+                {
+                    line: 58,
+                    say: `rol(k[i], b, n) rotates k[i] = k[${i}] left by b = ${b}, and XOR with the word just made, l[i+m-1] = l[${li}], gives the next round key k[${i + 1}].`,
+                    body: vars(
+                        ruler(n),
+                        row(`k[i] = k[${i}]`, it.ki, n),
+                        row('rol(k[i], b, n)', it.rolk, n, {
+                            mark: lowBits(b),
+                            sub: 'underlined bits wrapped round',
+                        }),
+                        row(`l[i+m-1] = l[${li}]`, it.lnew, n, { op: '^' }),
+                        row(`k[${i + 1}]`, it.knew, n, {
+                            res: true,
+                            sub: 'appended to k',
+                        }),
+                    ),
+                },
+            ],
+        })
+    }
+    iters.push({
+        label: 'return',
+        steps: [
+            {
+                line: 59,
+                say: `The loop ran T − 1 = ${T - 1} times, adding one key each time to k[0], so the function returns T = ${T} round keys. The l list is thrown away.`,
+                body: vars(
+                    ruler(n),
+                    row('k[0]', D.rk[0], n, { sub: 'first' }),
+                    row(`k[${T - 1}]`, D.rk[T - 1], n, { sub: 'last' }),
+                ),
+            },
+        ],
+    })
+    return iters
+}
+
+function renderRoundKeys(el) {
+    const { n, cipher } = S,
+        simon = cipher === 'simon',
+        m = S.m,
+        T = D.T
+    const rkRows = D.rk
+        .map((v, i) => {
+            const fromKey = simon ? i < m : i === 0
+            const src = fromKey
+                ? `key[${i}] = ${paperName(cipher, i)}, straight from the key`
+                : simon
+                  ? `line 33, iteration i = ${i}`
+                  : `line 58, iteration i = ${i - 1}`
+            return `<tr${fromKey ? ' class="cur"' : ''}><td class="num">${i}</td><td class="hex">${hexw(v, n)}</td><td>${src}${fromKey ? ' <span class="tag">from the key</span>' : ''}</td></tr>`
+        })
+        .join('')
+    const lRows = simon
+        ? ''
+        : D.ks.l
+              .map((v, i) => {
+                  const fromKey = i < m - 1
+                  return `<tr${fromKey ? ' class="cur"' : ''}><td class="num">${i}</td><td class="hex">${hexw(v, n)}</td><td>${fromKey ? `key[${i + 1}] = ℓ${sub(i)}, straight from the key` : `line 57, iteration i = ${i - (m - 1)}`}</td></tr>`
+              })
+              .join('')
+    el.innerHTML = `
+  <p class="prose">A cipher with T rounds needs T <dfn>round keys</dfn> (one n-bit word mixed in per round), but the key only has m words. The <dfn>key schedule</dfn> stretches the key: ${
+      simon
+          ? `${C('simon_round_keys')} (lines 23–34) uses the key words as k[0] to k[${m - 1}], then computes each later key from earlier ones with rotations, XOR and one bit of a fixed sequence Z[${D.j}].`
+          : `${C('speck_round_keys')} (lines 50–59) uses key[0] as k[0], then runs SPECK's own round function on the pair (l[i], k[i]) with the counter i as its "round key".`
+  }</p>
+  ${
+      simon
+          ? `<p class="prose">Z[${D.j}] adds a different 0 or 1 to each new key. Without it, keys built by the same rule could repeat in a pattern, which some attacks exploit. The five sequences are the first lines of the file; this variant uses the highlighted one, Z[${D.j}]:</p>
+  ${codeView([[1, 5]], { on: D.j + 1 })}`
+          : ''
+  }
+  <div id="ksDbg"></div>
+  <details><summary>All ${T} round keys</summary><div class="inner">
+    <p class="muted">Highlighted rows come straight from the key; every other key is computed by the loop.</p>
+    <div class="tbl"><table><thead><tr><th scope="col" class="num">i</th><th scope="col">k[i] (hex)</th><th scope="col">Where it comes from</th></tr></thead><tbody>${rkRows}</tbody></table></div>
+  </div></details>
+  ${
+      simon
+          ? ''
+          : `<details><summary>The l words (${D.ks.l.length} of them)</summary><div class="inner">
+    <p class="muted">The schedule's second list. Its first m − 1 = ${m - 1} entries come from the key; the loop appends one per iteration.</p>
+    <div class="tbl"><table><thead><tr><th scope="col" class="num">index</th><th scope="col">l[index] (hex)</th><th scope="col">Where it comes from</th></tr></thead><tbody>${lRows}</tbody></table></div>
+  </div></details>`
+  }`
+    const st = new Stepper($('#ksDbg', el), {
+        name: 'ks',
+        label: 'Loop iteration',
+        pos: ksPos,
+        codeLabel: simon
+            ? 'ref.py lines 23–34, simon_round_keys'
+            : 'ref.py lines 50–59, speck_round_keys',
+    })
+    st.setIters(
+        simon ? simonKeyIters() : speckKeyIters(),
+        simon ? [[23, 34]] : [[50, 59]],
+    )
+}
+
+// ======================================================================================
+// Chapter 6 · One round
+// ======================================================================================
+const roundPos = { it: 0, st: 0 }
+
+function changedNote(a, b, n) {
+    const d = popcount(a ^ b)
+    return `${d} of ${n} bits changed`
+}
+function roundSummary(R, n) {
+    return `<p class="note">Round ${R.r}: (x, y) = (${hx(R.x, n)}, ${hx(R.y, n)}) → (${hx(R.nx, n)}, ${hx(R.ny, n)}). ${popcount(R.nx ^ R.x) + popcount(R.ny ^ R.y)} of the block's ${2 * n} bits changed.</p>`
+}
+
+function simonRoundSteps(R) {
+    const n = S.n,
+        T = D.T,
+        kn = `k = k[${R.r - 1}]`
+    return [
+        {
+            line: 40,
+            say: `Round ${R.r} of ${T}: the loop hands this round its key, ${kn}. The state coming in is ${R.r === 1 ? 'the plaintext' : `the output of round ${R.r - 1}`}.`,
+            body: vars(
+                ruler(n),
+                row('x', R.x, n),
+                row('y', R.y, n),
+                row(kn, R.k, n),
+            ),
+        },
+        {
+            line: 36,
+            say: `${C('simon_f(x, n)')} is called with v = x. It starts with rol(v, 1, n): x rotated left by 1.`,
+            body: vars(
+                ruler(n),
+                row('v = x', R.x, n),
+                row('rol(v, 1, n)', R.s1, n, {
+                    res: true,
+                    mark: lowBits(1),
+                    sub: 'underlined bit wrapped round',
+                }),
+            ),
+        },
+        {
+            line: 36,
+            say: `rol(v, 8, n) rotates the same v left by 8.`,
+            body: vars(
+                ruler(n),
+                row('v = x', R.x, n),
+                row('rol(v, 8, n)', R.s8, n, {
+                    res: true,
+                    mark: lowBits(8),
+                    sub: 'underlined bits wrapped round',
+                }),
+            ),
+        },
+        {
+            line: 36,
+            say: `rol(v, 1, n) & rol(v, 8, n) keeps a 1 only where both rotated copies have a 1. ${NONLIN}`,
+            body:
+                vars(
+                    ruler(n),
+                    row('rol(v, 1, n)', R.s1, n),
+                    row('rol(v, 8, n)', R.s8, n, { op: '&' }),
+                    row('rol(v, 1, n) & rol(v, 8, n)', R.and, n, { res: true }),
+                ) +
+                `<p class="note">XOR and rotation are linear: flipping one input bit always flips the same output bits, whatever the other bits are. AND is not: flipping a bit of one input matters only where the other input has a 1. Without this step, SIMON could be solved like a set of linear equations.</p>`,
+        },
+        {
+            line: 36,
+            say: `rol(v, 2, n) rotates v left by 2.`,
+            body: vars(
+                ruler(n),
+                row('v = x', R.x, n),
+                row('rol(v, 2, n)', R.s2, n, {
+                    res: true,
+                    mark: lowBits(2),
+                    sub: 'underlined bits wrapped round',
+                }),
+            ),
+        },
+        {
+            line: 36,
+            say: `simon_f returns the AND XORed with rol(v, 2, n), so f(x) = ${hx(R.f, n)}.`,
+            body: vars(
+                ruler(n),
+                row('rol(v, 1, n) & rol(v, 8, n)', R.and, n),
+                row('rol(v, 2, n)', R.s2, n, { op: '^' }),
+                row('simon_f(x, n)', R.f, n, { res: true }),
+            ),
+        },
+        {
+            line: 41,
+            say: `The new x is y ^ simon_f(x, n) ^ k. Python evaluates the whole right-hand side with the old x before it assigns anything. Outlined bits differ from the old x.`,
+            body: vars(
+                ruler(n),
+                row('y', R.y, n),
+                row('simon_f(x, n)', R.f, n, { op: '^' }),
+                row(kn, R.k, n, { op: '^' }),
+                row('new x', R.nx, n, {
+                    res: true,
+                    diff: R.nx ^ R.x,
+                    sub: changedNote(R.nx, R.x, n) + ' vs old x',
+                }),
+            ),
+        },
+        {
+            line: 41,
+            say: `The new y is the old x, copied unchanged. Swapping the halves like this is what makes SIMON a Feistel cipher. Outlined bits differ from the old y.`,
+            body:
+                vars(
+                    ruler(n),
+                    row('old x', R.x, n),
+                    row('new y', R.ny, n, {
+                        res: true,
+                        diff: R.ny ^ R.y,
+                        sub: changedNote(R.ny, R.y, n) + ' vs old y',
+                    }),
+                ) + roundSummary(R, n),
+        },
+    ]
+}
+
+function speckRoundSteps(R) {
+    const n = S.n,
+        T = D.T,
+        [a, b] = speckAB(n),
+        kn = `k = k[${R.r - 1}]`,
+        cols = n + 1
+    return [
+        {
+            line: 64,
+            say: `Round ${R.r} of ${T}: the loop hands this round its key, ${kn}. The state coming in is ${R.r === 1 ? 'the plaintext' : `the output of round ${R.r - 1}`}.`,
+            body: vars(
+                ruler(n),
+                row('x', R.x, n),
+                row('y', R.y, n),
+                row(kn, R.k, n),
+            ),
+        },
+        {
+            line: 65,
+            say: `ror(x, a, n) rotates x right by a = ${a}.`,
+            body: vars(
+                ruler(n),
+                row('x', R.x, n),
+                row('ror(x, a, n)', R.rorx, n, {
+                    res: true,
+                    mark: highBits(a, n),
+                    sub: 'underlined bits wrapped round',
+                }),
+            ),
+        },
+        {
+            line: 65,
+            say: `ror(x, a, n) + y adds y to it. The sum can need ${n + 1} bits, so & mask drops the carry out of the top. ${NONLIN}`,
+            body:
+                vars(
+                    ruler(n, cols),
+                    row('ror(x, a, n)', R.rorx, n, { cols }),
+                    row('y', R.y, n, { cols, op: '+' }),
+                    row('carries', R.carries, n, {
+                        cols,
+                        over: 1,
+                        acc: true,
+                        sub: 'a coloured cell is a carry into that bit',
+                    }),
+                    row('ror(x, a, n) + y', R.sum, n, {
+                        cols,
+                        over: 1,
+                        res: true,
+                        sub:
+                            R.sum >> BigInt(n)
+                                ? 'the hatched top bit is the carry out'
+                                : 'no carry out of the top this time',
+                    }),
+                    row('(…) & mask', R.masked, n, { cols, res: true }),
+                ) +
+                `<p class="note">Each bit of a sum depends on every lower bit, through the chain of carries. That dependence is not linear, and it is the only nonlinear step in SPECK; everything else is rotation and XOR.</p>`,
+        },
+        {
+            line: 65,
+            say: `XOR with the round key gives the new x. Outlined bits differ from the old x.`,
+            body: vars(
+                ruler(n),
+                row('(ror(x, a, n) + y) & mask', R.masked, n),
+                row(kn, R.k, n, { op: '^' }),
+                row('new x', R.nx, n, {
+                    res: true,
+                    diff: R.nx ^ R.x,
+                    sub: changedNote(R.nx, R.x, n) + ' vs old x',
+                }),
+            ),
+        },
+        {
+            line: 66,
+            say: `rol(y, b, n) rotates the old y left by b = ${b}.`,
+            body: vars(
+                ruler(n),
+                row('y', R.y, n),
+                row('rol(y, b, n)', R.roly, n, {
+                    res: true,
+                    mark: lowBits(b),
+                    sub: 'underlined bits wrapped round',
+                }),
+            ),
+        },
+        {
+            line: 66,
+            say: `XOR with x, which line 65 has already replaced with the new x, gives the new y. Outlined bits differ from the old y.`,
+            body:
+                vars(
+                    ruler(n),
+                    row('rol(y, b, n)', R.roly, n),
+                    row('x (new)', R.nx, n, { op: '^' }),
+                    row('new y', R.ny, n, {
+                        res: true,
+                        diff: R.ny ^ R.y,
+                        sub: changedNote(R.ny, R.y, n) + ' vs old y',
+                    }),
+                ) + roundSummary(R, n),
+        },
+    ]
+}
+
+function renderOneRound(el) {
+    const simon = S.cipher === 'simon',
+        [a, b] = speckAB(S.n)
+    el.innerHTML = `
+  <p class="prose">The loop body in ${C(S.cipher + '_encrypt')} is one <dfn>round</dfn>. Pick a round with the slider and step through it. In the paper's notation, where S<sup>j</sup> means rotate left by j and S<sup>−j</sup> rotate right:</p>
+  <div class="callout"><p class="mono" style="margin:0">${
+      simon
+          ? `f(x) = (S<sup>1</sup>x &amp; S<sup>8</sup>x) ⊕ S<sup>2</sup>x<br>(x, y) → (y ⊕ f(x) ⊕ k, x)`
+          : `x → (S<sup>−${a}</sup>x + y) ⊕ k<br>y → S<sup>${b}</sup>y ⊕ x   (using the new x)`
+  }</p></div>
+  <div id="roundDbg"></div>`
+    const st = new Stepper($('#roundDbg', el), {
+        name: 'round',
+        label: 'Round',
+        pos: roundPos,
+        codeLabel: simon
+            ? 'ref.py lines 36–42, simon_f and simon_encrypt'
+            : 'ref.py lines 61–67, speck_encrypt',
+    })
+    st.setIters(
+        D.rounds.map((R) => ({
+            label: `round ${R.r} of ${D.T}`,
+            steps: (simon ? simonRoundSteps : speckRoundSteps)(R),
+        })),
+        simon ? [[36, 42]] : [[61, 67]],
+    )
+}
+
+// ======================================================================================
+// Chapter 7 · All rounds
+// ======================================================================================
+const filmUI = { changes: false, sel: 1, hover: -1 }
+
+function encryptCallSteps() {
+    const { n, cipher, x, y } = S,
+        simon = cipher === 'simon',
+        T = D.T,
+        w = (v) => hx(v, n)
+    const list = `[${S.key.map(w).join(', ')}]`,
+        cmp = D.isPaper ? ` It matches the paper's test vector.` : ''
+    return simon
+        ? [
+              {
+                  line: 38,
+                  say: `${C('simon_encrypt')} is called with x = ${w(x)}, y = ${w(y)}, key = ${C(list)} and n = ${n}.`,
+              },
+              {
+                  line: 39,
+                  say: `${C('_check')} passes; this time it also checks that x and y fit in ${n} bits.`,
+              },
+              {
+                  line: 40,
+                  say: `${C('simon_round_keys(key, n)')} runs once and returns ${T} round keys. The for loop then takes them one at a time, so the body runs ${T} times.`,
+              },
+              {
+                  line: 41,
+                  say: `Each pass is one round: the new pair (x, y) replaces the old one. The film strip below shows the state after every pass.`,
+              },
+              {
+                  line: 42,
+                  say: `After ${T} rounds the function returns (x, y) = (${w(D.cx)}, ${w(D.cy)}): the ciphertext.${cmp}`,
+              },
+          ]
+        : [
+              {
+                  line: 61,
+                  say: `${C('speck_encrypt')} is called with x = ${w(x)}, y = ${w(y)}, key = ${C(list)} and n = ${n}.`,
+              },
+              {
+                  line: 62,
+                  say: `${C('_check')} passes; this time it also checks that x and y fit in ${n} bits.`,
+              },
+              {
+                  line: 63,
+                  say: `a, b = ${D.a}, ${D.b} since n is ${n}, and mask = ${w(D.mask)}.`,
+              },
+              {
+                  line: 64,
+                  say: `${C('speck_round_keys(key, n)')} runs once and returns ${T} round keys. The for loop then takes them one at a time, so the body runs ${T} times.`,
+              },
+              { line: 65, say: `Each pass replaces x first (line 65)…` },
+              {
+                  line: 66,
+                  say: `…and then y, using the new x (line 66). The film strip below shows the state after every pass.`,
+              },
+              {
+                  line: 67,
+                  say: `After ${T} rounds the function returns (x, y) = (${w(D.cx)}, ${w(D.cy)}): the ciphertext.${cmp}`,
+              },
+          ]
+}
+
+function drawFilm(canvas) {
+    const n = S.n,
+        states = D.states,
+        cols = 2 * n,
+        rows = states.length
+    const avail = Math.max(240, canvas.parentElement.clientWidth - 2)
+    const labelW = 30,
+        gap = 6,
+        head = 16
+    const cell = clamp(Math.floor((avail - labelW - gap) / cols), 3, 14)
+    const rowH = clamp(cell, 5, 12)
+    const W = labelW + cols * cell + gap,
+        H = head + rows * rowH
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = Math.round(W * dpr)
+    canvas.height = Math.round(H * dpr)
+    canvas.style.width = W + 'px'
+    canvas.style.height = H + 'px'
+    const g = canvas.getContext('2d')
+    g.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const col = {
+        b1: cssVar('--bit1'),
+        b0: cssVar('--bit0'),
+        acc: cssVar('--accent'),
+        ink: cssVar('--ink-3'),
+        bg: cssVar('--panel'),
+    }
+    g.fillStyle = col.bg
+    g.fillRect(0, 0, W, H)
+    g.font = '10px ' + cssVar('--mono', document.documentElement)
+    g.fillStyle = col.ink
+    g.textBaseline = 'middle'
+    g.textAlign = 'center'
+    g.fillText('x', labelW + (n * cell) / 2, head / 2)
+    g.fillText('y', labelW + gap + n * cell + (n * cell) / 2, head / 2)
+    g.textAlign = 'right'
+    const every = rowH >= 10 ? 1 : rowH >= 7 ? 2 : 4
+    for (let r = 0; r < rows; r++) {
+        const [x, y] = states[r],
+            v = (x << BigInt(n)) | y
+        const prev = r ? (states[r - 1][0] << BigInt(n)) | states[r - 1][1] : v,
+            d = v ^ prev
+        const top = head + r * rowH
+        if (r % every === 0 || r === rows - 1) {
+            g.fillStyle = col.ink
+            g.fillText(r === 0 ? 'in' : String(r), labelW - 6, top + rowH / 2)
+        }
+        for (let c = 0; c < cols; c++) {
+            const p = BigInt(cols - 1 - c),
+                bit = (v >> p) & 1n,
+                ch = (d >> p) & 1n
+            g.fillStyle =
+                filmUI.changes && r > 0
+                    ? ch
+                        ? col.acc
+                        : bit
+                          ? col.b1
+                          : col.b0
+                    : bit
+                      ? col.b1
+                      : col.b0
+            if (filmUI.changes && r > 0 && !ch) g.globalAlpha = 0.35
+            g.fillRect(
+                labelW + c * cell + (c >= n ? gap : 0),
+                top,
+                Math.max(1, cell - 1),
+                Math.max(1, rowH - 1),
+            )
+            g.globalAlpha = 1
+        }
+    }
+    for (const [r, style, wdt] of [
+        [filmUI.hover, col.ink, 1.5],
+        [filmUI.sel, col.acc, 2.5],
+    ]) {
+        if (r < 0 || r >= rows) continue
+        g.strokeStyle = style
+        g.lineWidth = wdt
+        g.strokeRect(
+            labelW - 2,
+            head + r * rowH - 1,
+            cols * cell + gap + 3,
+            rowH + 1,
+        )
+    }
+    canvas._geo = { head, rowH, rows }
+}
+
+function renderAllRounds(el) {
+    const { n, cipher } = S,
+        simon = cipher === 'simon',
+        T = D.T
+    filmUI.sel = clamp(filmUI.sel, 0, T)
+    const pc = D.paperCt,
+        match = D.cx === pc[0] && D.cy === pc[1]
+    el.innerHTML = `
+  <p class="prose">${C(cipher + '_encrypt')} is short: check the inputs, build the round keys, run the round T = ${T} times, return the result. Step through it:</p>
+  <div id="encDbg"></div>
+  <h3>Film strip: the state after every round</h3>
+  <p class="prose">Each row is the ${2 * n}-bit block (x then y) after one round; the top row, "in", is the plaintext. Click a row, or focus the strip and use ↑ ↓ and Enter, to open that round in chapter 6.</p>
+  <label class="nowrap" style="font-size:.9rem"><input type="checkbox" id="filmChanges"${filmUI.changes ? ' checked' : ''}> Colour the bits that changed since the previous row</label>
+  <div class="canvas-wrap"><canvas class="strip" id="film" tabindex="0" role="img" aria-label="Film strip of ${T + 1} states, ${2 * n} bits each. Use the arrow keys to choose a round and Enter to open it."></canvas></div>
+  <p id="filmInfo" class="note" aria-live="polite"></p>
+  <h3>The result</h3>
+  <dl class="kv">
+    <dt>returned</dt><dd>(x, y) = (${hx(D.cx, n)}, ${hx(D.cy, n)})</dd>
+    <dt>as the paper writes it</dt><dd>${hexw(D.cx, n)} ${hexw(D.cy, n)}</dd>
+    <dt>paper's test vector</dt><dd>${D.vec[3]}${D.isPaper ? '' : ' (for different inputs)'}</dd>
+  </dl>
+  ${
+      D.isPaper
+          ? `<p class="${match ? 'match' : 'match no'}">${match ? "✓ Matches the paper's test vector for " + D.name + '.' : "✗ Does not match the paper's test vector."}</p>`
+          : `<p class="note">Your inputs differ from the paper's test vector for ${D.name}, so there is no published answer to compare with. Choose "Use the paper's test vector" in ${chLink('inputs')} to check against the paper.</p>`
+  }
+  <details><summary>Table of all ${T} rounds</summary><div class="inner"><div class="tbl"><table>
+    <thead><tr><th scope="col" class="num">Round</th><th scope="col">Round key k</th><th scope="col">x after</th><th scope="col">y after</th><th scope="col"><span class="sr">Open</span></th></tr></thead>
+    <tbody><tr><td class="num">in</td><td class="muted">—</td><td class="hex">${hexw(S.x, n)}</td><td class="hex">${hexw(S.y, n)}</td><td></td></tr>
+    ${D.rounds.map((R) => `<tr><td class="num">${R.r}</td><td class="hex">${hexw(R.k, n)}</td><td class="hex">${hexw(R.nx, n)}</td><td class="hex">${hexw(R.ny, n)}</td><td><button type="button" class="btn small" data-round="${R.r}">Open</button></td></tr>`).join('')}</tbody>
+  </table></div></div></details>`
+
+    const st = new Stepper($('#encDbg', el), {
+        name: 'enc',
+        label: 'Call',
+        noSlider: true,
+        codeLabel: simon
+            ? 'ref.py lines 38–42, simon_encrypt'
+            : 'ref.py lines 61–67, speck_encrypt',
+    })
+    st.setIters(
+        [{ label: 'call', steps: encryptCallSteps() }],
+        simon ? [[38, 42]] : [[61, 67]],
+    )
+
+    const cv = $('#film', el),
+        info = $('#filmInfo', el)
+    const openRound = (r) => {
+        roundPos.it = clamp(r, 1, T) - 1
+        roundPos.st = 0
+        CH[5].v = -1
+        go('one-round')
+    }
+    const describe = (r) => {
+        const [x, y] = D.states[r]
+        info.textContent =
+            r === 0
+                ? `Plaintext: x = ${hx(x, n)}, y = ${hx(y, n)}.`
+                : `After round ${r} (key k[${r - 1}] = ${hx(D.rk[r - 1], n)}): x = ${hx(x, n)}, y = ${hx(y, n)}.`
+    }
+    const rowAt = (e) => {
+        const g = cv._geo,
+            rect = cv.getBoundingClientRect()
+        const r = Math.floor((e.clientY - rect.top - g.head) / g.rowH)
+        return r >= 0 && r < g.rows ? r : -1
+    }
+    drawFilm(cv)
+    describe(filmUI.sel)
+    cv.addEventListener('mousemove', (e) => {
+        const r = rowAt(e)
+        if (r !== filmUI.hover) {
+            filmUI.hover = r
+            drawFilm(cv)
+            if (r >= 0) describe(r)
+        }
+    })
+    cv.addEventListener('mouseleave', () => {
+        filmUI.hover = -1
+        drawFilm(cv)
+        describe(filmUI.sel)
+    })
+    cv.addEventListener('click', (e) => {
+        const r = rowAt(e)
+        if (r >= 0) openRound(Math.max(1, r))
+    })
+    cv.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+            filmUI.sel = clamp(
+                filmUI.sel + (e.key === 'ArrowDown' ? 1 : -1),
+                0,
+                T,
+            )
+            drawFilm(cv)
+            describe(filmUI.sel)
+        } else if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            openRound(Math.max(1, filmUI.sel))
+        }
+    })
+    $('#filmChanges', el).addEventListener('change', (e) => {
+        filmUI.changes = e.target.checked
+        drawFilm(cv)
+    })
+    el.querySelectorAll('[data-round]').forEach((b) =>
+        b.addEventListener('click', () => openRound(+b.dataset.round)),
+    )
+    CH[6].redraw = () => drawFilm(cv)
+}
+
+// ======================================================================================
+// Chapter 8 · Decryption
+// ======================================================================================
+const decPos = { it: 1, st: 0 }
+
+function matchLine(s) {
+    const n = S.n,
+        [ex, ey] = D.states[s.kidx],
+        ok = s.nx === ex && s.ny === ey
+    const what =
+        s.kidx === 0
+            ? 'the plaintext'
+            : `the encryption state after round ${s.kidx}`
+    return `<p class="${ok ? 'match' : 'match no'}">${ok ? '✓' : '✗'} (${hx(s.nx, n)}, ${hx(s.ny, n)}) ${ok ? 'equals' : 'differs from'} ${what}.</p>`
+}
+
+function simonDecIters() {
+    const n = S.n,
+        T = D.T,
+        w = (v) => hx(v, n)
+    const iters = [
+        {
+            label: 'setup',
+            steps: [
+                {
+                    line: 44,
+                    say: `${C('simon_decrypt')} is called with the ciphertext x = ${w(D.cx)}, y = ${w(D.cy)}, and the same key and n.`,
+                },
+                {
+                    line: 45,
+                    say: `${C('_check')} passes, exactly as it did for encryption.`,
+                },
+                {
+                    line: 46,
+                    say: `${C('reversed(simon_round_keys(key, n))')} builds the same ${T} round keys and hands them out last first: k[${T - 1}], k[${T - 2}], …, k[0].`,
+                },
+            ],
+        },
+    ]
+    for (const s of D.dec) {
+        const kn = `k = k[${s.kidx}]`
+        iters.push({
+            label: `step ${s.s} · undo round ${s.kidx + 1}`,
+            steps: [
+                {
+                    line: 46,
+                    say: `Step ${s.s} of ${T} uses ${kn}, the key of encryption round ${s.kidx + 1}. The state coming in is the output of that round.`,
+                    body: vars(
+                        ruler(n),
+                        row('x', s.x, n),
+                        row('y', s.y, n),
+                        row(kn, s.k, n),
+                    ),
+                },
+                {
+                    line: 36,
+                    say: `${C('simon_f(y, n)')} recomputes the f that encryption round ${s.kidx + 1} used: that round copied its input x into y, so y holds exactly the value f was computed from.`,
+                    body: vars(
+                        ruler(n),
+                        row('v = y', s.y, n),
+                        row('rol(v, 1, n) & rol(v, 8, n)', s.and, n, {
+                            sub: 'the AND, as in chapter 6',
+                        }),
+                        row('rol(v, 2, n)', s.s2, n, { op: '^' }),
+                        row('simon_f(y, n)', s.f, n, { res: true }),
+                    ),
+                },
+                {
+                    line: 47,
+                    say: `The new y is x ^ simon_f(y, n) ^ k. Encryption made x = y<sub>old</sub> ^ f ^ k, so XORing f and k in again cancels them and leaves y<sub>old</sub>.`,
+                    body: vars(
+                        ruler(n),
+                        row('x', s.x, n),
+                        row('simon_f(y, n)', s.f, n, { op: '^' }),
+                        row(kn, s.k, n, { op: '^' }),
+                        row('new y', s.ny, n, { res: true, diff: s.ny ^ s.y }),
+                    ),
+                },
+                {
+                    line: 47,
+                    say: `The new x is the old y, which undoes the swap.`,
+                    body:
+                        vars(
+                            ruler(n),
+                            row('old y', s.y, n),
+                            row('new x', s.nx, n, {
+                                res: true,
+                                diff: s.nx ^ s.x,
+                            }),
+                        ) + matchLine(s),
+                },
+            ],
+        })
+    }
+    iters.push({
+        label: 'return',
+        steps: [
+            {
+                line: 48,
+                say: `After ${T} steps the function returns (${w(D.px)}, ${w(D.py)}).`,
+                body: `<p class="${D.px === S.x && D.py === S.y ? 'match' : 'match no'}">${D.px === S.x && D.py === S.y ? '✓ This is the original plaintext.' : '✗ This is not the plaintext.'}</p>`,
+            },
+        ],
+    })
+    return iters
+}
+
+function speckDecIters() {
+    const n = S.n,
+        T = D.T,
+        [a, b] = speckAB(n),
+        w = (v) => hx(v, n),
+        cols = n + 1
+    const iters = [
+        {
+            label: 'setup',
+            steps: [
+                {
+                    line: 69,
+                    say: `${C('speck_decrypt')} is called with the ciphertext x = ${w(D.cx)}, y = ${w(D.cy)}, and the same key and n.`,
+                },
+                {
+                    line: 70,
+                    say: `${C('_check')} passes, exactly as it did for encryption.`,
+                },
+                {
+                    line: 71,
+                    say: `a, b = ${a}, ${b} and mask = ${w(D.mask)}, as in encryption.`,
+                },
+                {
+                    line: 72,
+                    say: `${C('reversed(speck_round_keys(key, n))')} builds the same ${T} round keys and hands them out last first: k[${T - 1}], k[${T - 2}], …, k[0].`,
+                },
+            ],
+        },
+    ]
+    for (const s of D.dec) {
+        const kn = `k = k[${s.kidx}]`,
+            R = D.rounds[s.kidx]
+        iters.push({
+            label: `step ${s.s} · undo round ${s.kidx + 1}`,
+            steps: [
+                {
+                    line: 72,
+                    say: `Step ${s.s} of ${T} uses ${kn}, the key of encryption round ${s.kidx + 1}. The state coming in is the output of that round. Decryption undoes line 66 first, then line 65.`,
+                    body: vars(
+                        ruler(n),
+                        row('x', s.x, n),
+                        row('y', s.y, n),
+                        row(kn, s.k, n),
+                    ),
+                },
+                {
+                    line: 73,
+                    say: `x ^ y cancels the x that line 66 XORed into y, leaving rol(y<sub>old</sub>, b, n).`,
+                    body: vars(
+                        ruler(n),
+                        row('x', s.x, n),
+                        row('y', s.y, n, { op: '^' }),
+                        row('x ^ y', s.xy, n, { res: true }),
+                    ),
+                },
+                {
+                    line: 73,
+                    say: `ror(…, b, n) rotates right by b = ${b}, undoing the left rotation, so the new y is y<sub>old</sub>.`,
+                    body:
+                        vars(
+                            ruler(n),
+                            row('x ^ y', s.xy, n),
+                            row('new y', s.ny, n, {
+                                res: true,
+                                mark: highBits(b, n),
+                                sub: `= y before round ${s.kidx + 1}`,
+                            }),
+                        ) +
+                        `<p class="${s.ny === R.y ? 'match' : 'match no'}">${s.ny === R.y ? '✓' : '✗'} matches y before encryption round ${s.kidx + 1}.</p>`,
+                },
+                {
+                    line: 74,
+                    say: `x ^ k removes the round key, leaving the masked sum that line 65 produced.`,
+                    body: vars(
+                        ruler(n),
+                        row('x', s.x, n),
+                        row(kn, s.k, n, { op: '^' }),
+                        row('x ^ k', s.xk, n, { res: true }),
+                    ),
+                },
+                {
+                    line: 74,
+                    say: `Subtracting the new y undoes the addition. If the result is negative, & mask wraps it back into ${n} bits, just as the addition wrapped. Coloured cells are borrows.`,
+                    body: vars(
+                        ruler(n, cols),
+                        row('x ^ k', s.xk, n, { cols }),
+                        row('y (new)', s.ny, n, { cols, op: '-' }),
+                        row('borrows', s.borrows, n, {
+                            cols,
+                            over: 1,
+                            acc: true,
+                            sub: 'a coloured cell borrows from the bit to its left',
+                        }),
+                        row('(x ^ k) - y', s.diff, n, {
+                            cols,
+                            over: 1,
+                            res: true,
+                            hex: hx(s.diff, n),
+                            sub:
+                                s.diff < 0n
+                                    ? 'negative: Python has no fixed width'
+                                    : 'not negative this time',
+                        }),
+                        row('(…) & mask', s.masked, n, {
+                            cols,
+                            res: true,
+                            sub: `= ror(x, a, n) from round ${s.kidx + 1}`,
+                        }),
+                    ),
+                },
+                {
+                    line: 74,
+                    say: `rol(…, a, n) rotates left by a = ${a}, undoing the right rotation, so the new x is x<sub>old</sub>.`,
+                    body:
+                        vars(
+                            ruler(n),
+                            row('(…) & mask', s.masked, n),
+                            row('new x', s.nx, n, {
+                                res: true,
+                                mark: lowBits(a),
+                            }),
+                        ) + matchLine(s),
+                },
+            ],
+        })
+    }
+    iters.push({
+        label: 'return',
+        steps: [
+            {
+                line: 75,
+                say: `After ${T} steps the function returns (${w(D.px)}, ${w(D.py)}).`,
+                body: `<p class="${D.px === S.x && D.py === S.y ? 'match' : 'match no'}">${D.px === S.x && D.py === S.y ? '✓ This is the original plaintext.' : '✗ This is not the plaintext.'}</p>`,
+            },
+        ],
+    })
+    return iters
+}
+
+function renderDecryption(el) {
+    const { n, cipher } = S,
+        simon = cipher === 'simon',
+        T = D.T
+    const okAll = D.dec.every(
+        (s) => s.nx === D.states[s.kidx][0] && s.ny === D.states[s.kidx][1],
+    )
+    el.innerHTML = `
+  <p class="prose">To decrypt, ${C(cipher + '_decrypt')} uses the same round keys in reverse order and undoes each round. ${
+      simon
+          ? "SIMON's round is easy to reverse: the swap is undone by swapping back, and XOR undoes itself. The same simon_f is used in both directions; it never needs to be inverted."
+          : "SPECK's round must be undone operation by operation, in reverse order: XOR undoes XOR, ror undoes rol, rol undoes ror, and subtraction undoes addition."
+  }</p>
+  <p class="prose">Decryption step s uses key k[T − s] and should land on the encryption state after round T − s. Every step below checks this.</p>
+  <div id="decDbg"></div>
+  <p class="${okAll ? 'match' : 'match no'}">${okAll ? `✓ All ${T} steps reproduce the matching encryption state, ending on the plaintext.` : '✗ At least one step does not match.'}</p>
+  <details><summary>Table of all ${T} decryption steps</summary><div class="inner"><div class="tbl"><table>
+    <thead><tr><th scope="col" class="num">Step</th><th scope="col">Key used</th><th scope="col">x after</th><th scope="col">y after</th><th scope="col">Equals encryption state</th></tr></thead>
+    <tbody>${D.dec
+        .map((s) => {
+            const ok =
+                s.nx === D.states[s.kidx][0] && s.ny === D.states[s.kidx][1]
+            return `<tr><td class="num">${s.s}</td><td class="mono">k[${s.kidx}]</td><td class="hex">${hexw(s.nx, n)}</td><td class="hex">${hexw(s.ny, n)}</td><td>${s.kidx === 0 ? 'plaintext' : 'after round ' + s.kidx} <span class="${ok ? 'pass' : 'fail'}">${ok ? '✓' : '✗'}</span></td></tr>`
+        })
+        .join('')}</tbody>
+  </table></div></div></details>`
+    const st = new Stepper($('#decDbg', el), {
+        name: 'dec',
+        label: 'Decryption step',
+        pos: decPos,
+        codeLabel: simon
+            ? 'ref.py lines 36 and 44–48'
+            : 'ref.py lines 69–75, speck_decrypt',
+    })
+    st.setIters(
+        simon ? simonDecIters() : speckDecIters(),
+        simon
+            ? [
+                  [36, 36],
+                  [44, 48],
+              ]
+            : [[69, 75]],
+    )
+}
+
+// ======================================================================================
+// Chapter 9 · Testing
+// ======================================================================================
+const TESTS = run_tests();             // the test block, run on page load
+const TRACE_BAD = checkTracers();      // the step-through tracers must agree with the plain functions
+let testMsg = "";
+
+function renderTesting(el) {
+  const { cipher, n, m } = S, simon = cipher === "simon";
+  const [, keyText, pt, ct] = D.vec;
+  const words = splitHex(keyText).reverse(), [x, y] = splitHex(pt);
+  const [cx, cy] = (simon ? simon_encrypt : speck_encrypt)(x, y, words, n);
+  const [dx, dy] = (simon ? simon_decrypt : speck_decrypt)(cx, cy, words, n);
+  const got = `${hexw(cx, n)} ${hexw(cy, n)}`, me = TESTS.find(t => t.name === cipher && t.n === n && t.m === m);
+  const lines = [
+    [102, `Python sets ${C("__name__")} to ${C('"__main__"')} only when the file is run directly (${C("python3 ref.py")}). Importing ref.py from other code skips this block.`, "—"],
+    [103, `Maps each cipher's name to its pair of functions (encrypt, decrypt).`, `"${cipher}" → (${cipher}_encrypt, ${cipher}_decrypt)`],
+    [104, `Loops over both ciphers, unpacking each pair into ${C("enc")} and ${C("dec")}.`, `name = "${cipher}", enc = ${cipher}_encrypt`],
+    [105, `Loops over that cipher's 10 test vectors, unpacking each tuple.`, `n = ${n}, key = "${keyText}", pt = "${pt}", ct = "${ct}"`],
+    [106, `Splits the key text at the spaces, reads each word as hex (base 16) and reverses the list into code order with ${C("[::-1]")}.`, `words = [${words.map(v => hx(v, n)).join(", ")}]`],
+    [107, `Reads the two plaintext words the same way.`, `x = ${hx(x, n)}, y = ${hx(y, n)}`],
+    [108, `Encrypts.`, `cx = ${hx(cx, n)}, cy = ${hx(cy, n)}`],
+    [109, `Formats each word as hex padded with zeros to n//4 = ${n / 4} digits and compares the result with ct. It also decrypts and checks that this gives back (x, y). Both must hold.`, `"${got}" == "${ct}" → ${got === ct ? "True" : "False"}; decrypt → (${hx(dx, n)}, ${hx(dy, n)}) == (x, y) → ${dx === x && dy === y ? "True" : "False"}`],
+    [110, `Prints the variant name (block size 2n / key size n·len(words), padded to 4 characters) and OK or FAIL.`, `${me.line.replace(/ /g, "&nbsp;")}`],
+  ];
+  const nOk = TESTS.filter(t => t.ok).length;
+  el.innerHTML = `
+  <p class="prose">A <dfn>test vector</dfn> is a published key, plaintext and correct ciphertext. The paper's appendices give one for each of the 20 variants; lines 78–100 copy them into ${C("VECTORS")}. The block at the end of the file runs them all:</p>
+  ${codeView([[102, 110]], { on: 106 })}
+  <div class="tbl stack"><table>
+    <thead><tr><th scope="col" class="num">Line</th><th scope="col">What it does</th><th scope="col">For the ${D.name} vector</th></tr></thead>
+    <tbody>${lines.map(([l, what, val]) => `<tr data-line="${l}"><td class="num" data-label="Line">${l}</td><td data-label="What it does">${what}</td><td class="mono" data-label="For the ${D.name} vector" style="font-size:.8rem;word-break:break-all">${val}</td></tr>`).join("")}</tbody>
+  </table></div>
+  <p class="muted" style="font-size:.85rem">Hover over or focus a row to highlight its line in the code above.</p>
+  <details><summary>The VECTORS table (lines 77–100)</summary><div class="inner">
+    <p class="prose">Each tuple is (n, key words, plaintext, ciphertext), with every multi-word value written most significant word first, as in the paper. The highlighted line is the vector for ${D.name}.</p>
+    ${codeView([[77, 100]], { on: (simon ? 80 : 91) + VECTORS[cipher].indexOf(D.vec) })}
+  </div></details>
+
+  <h3>Live results</h3>
+  <p class="prose">These rows were computed when the page loaded, by running the page's translation of the test block. Click a row to load that vector as the current inputs.</p>
+  <p class="${nOk === 20 ? "match" : "match no"}">${nOk === 20 ? "✓" : "✗"} ${nOk} of 20 test vectors pass, encrypting and decrypting.</p>
+  <p id="testStatus" class="status ok" role="status">${esc(testMsg)}</p>
+  <div class="tbl"><table>
+    <thead><tr><th scope="col">Variant</th><th scope="col">Expected ciphertext</th><th scope="col">Computed ciphertext</th><th scope="col">Decrypts back</th><th scope="col">Result</th></tr></thead>
+    <tbody>${TESTS.map(t => {
+      const curRow = t.name === cipher && t.n === n && t.m === m, id = `tv-${t.name}-${t.n}-${t.m}`;
+      return `<tr class="click${curRow ? " cur" : ""} c-${t.name}" data-tv="${t.name},${t.n},${t.m}"${curRow ? ' aria-current="true"' : ""}>
+        <td><button type="button" class="btn small" id="${id}" data-tv="${t.name},${t.n},${t.m}">${vname(t.name, t.n, t.m)}</button></td>
+        <td class="hex">${t.ct}</td><td class="hex">${t.got}</td>
+        <td>${t.back ? '<span class="pass">✓ yes</span>' : '<span class="fail">✗ no</span>'}</td>
+        <td>${t.ok ? '<span class="pass">OK</span>' : '<span class="fail">FAIL</span>'}</td></tr>`;
+    }).join("")}</tbody>
+  </table></div>
+  <h4>What <code>python3 ref.py</code> prints</h4>
+  <pre class="out${nOk === 20 ? " good" : " bad"}">${TESTS.map(t => esc(t.line)).join("\n")}</pre>
+  <p class="note">${TRACE_BAD.length ? `✗ The step-through tracers disagree with the reference functions for ${TRACE_BAD.join(", ")}.` : "✓ The instrumented copies that draw chapters 5–8 also agree with the plain functions on all 20 vectors."}</p>`;
+  testMsg = "";
+
+  const code = $(".code", el);
+  el.querySelectorAll("tr[data-line]").forEach(tr => {
+    tr.tabIndex = 0;
+    const on = () => setLines(code, +tr.dataset.line);
+    tr.addEventListener("mouseenter", on); tr.addEventListener("focus", on);
+  });
+  el.querySelectorAll("tr[data-tv]").forEach(tr => tr.addEventListener("click", e => {
+    const [c, nn, mm] = tr.dataset.tv.split(",");
+    testMsg = `Loaded the ${vname(c, +nn, +mm)} test vector as the current inputs.`;
+    setState(vectorState(c, +nn, +mm));
+    document.getElementById(`tv-${c}-${nn}-${mm}`)?.focus({ preventScroll: true });
+  }));
+}
+
+// ======================================================================================
+// Chapter 10 · Why so many rounds?
+// ======================================================================================
+const difUI = { bit: null };
+const difCache = new Map();
+
+function mulberry32(a) {
+  return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0); };
+}
+function hashStr(s) { let h = 2166136261; for (const ch of s) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return h >>> 0; }
+function flipped(x, y, bit, n) { return bit >= n ? [x ^ (1n << BigInt(bit - n)), y] : [x, y ^ (1n << BigInt(bit))]; }
+// Add the set bits of d (a 2n-bit difference) into counts.
+function countBits(d, counts, words32) {
+  for (let c = 0; c < words32; c++) {
+    let w = Number((d >> BigInt(32 * c)) & 0xffffffffn);
+    while (w) { const low = w & -w; counts[32 * c + 31 - Math.clz32(low)]++; w ^= low; }
+  }
+}
+const TRIALS = 200;
+function diffusionStats(cipher, n, m, bit, x, y) {
+  const key = `${cipher}|${n}|${m}|${bit}|${x}|${y}`;
+  if (difCache.has(key)) return difCache.get(key);
+  const T = cipher === "simon" ? SIMON.get(`${n},${m}`)[0] : SPECK.get(`${n},${m}`);
+  const rng = mulberry32(hashStr(key)), W = 2 * n, N = BigInt(n), w32 = Math.ceil(W / 32);
+  const counts = Array.from({ length: T + 1 }, () => new Uint32Array(w32 * 32));
+  const [x2, y2] = flipped(x, y, bit, n);
+  const word = () => { let v = 0n; for (let i = 0; i < Math.ceil(n / 32); i++) v = (v << 32n) | BigInt(rng()); return v & MASK(n); };
+  for (let t = 0; t < TRIALS; t++) {
+    const k = Array.from({ length: m }, word);
+    const rk = (cipher === "simon" ? simon_round_keys : speck_round_keys)(k, n);
+    const a = statesWith(cipher, x, y, rk, n), b = statesWith(cipher, x2, y2, rk, n);
+    for (let r = 0; r <= T; r++) countBits(((a[r][0] ^ b[r][0]) << N) | (a[r][1] ^ b[r][1]), counts[r], w32);
+  }
+  const rounds = counts.map((c, r) => {
+    let sum = 0, lo = 1, hi = 0;
+    for (let i = 0; i < W; i++) { const p = c[i] / TRIALS; sum += p; lo = Math.min(lo, p); hi = Math.max(hi, p); }
+    return { r, mean: sum / W, lo, hi };
+  });
+  const full = rounds.find(o => o.r > 0 && o.lo >= 0.35 && o.hi <= 0.65);
+  const res = { T, rounds, full: full ? full.r : null };
+  difCache.set(key, res);
+  return res;
+}
+
+function drawHeat(canvas, cipher, info) {
+  const n = S.n, m = S.m, W = 2 * n, bit = difUI.bit;
+  const rk = (cipher === "simon" ? simon_round_keys : speck_round_keys)(S.key, n);
+  const [x2, y2] = flipped(S.x, S.y, bit, n);
+  const a = statesWith(cipher, S.x, S.y, rk, n), b = statesWith(cipher, x2, y2, rk, n), rows = a.length;
+  const diffs = a.map((s, r) => ((s[0] ^ b[r][0]) << BigInt(n)) | (s[1] ^ b[r][1]));
+  const avail = Math.max(200, canvas.parentElement.clientWidth - 2), labelW = 26;
+  const cell = clamp(Math.floor((avail - labelW) / W), 2, 14), rowH = clamp(cell, 3, 8);
+  const Wpx = labelW + W * cell, Hpx = rows * rowH, dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(Wpx * dpr); canvas.height = Math.round(Hpx * dpr);
+  canvas.style.width = Wpx + "px"; canvas.style.height = Hpx + "px";
+  const g = canvas.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const acc = cssVar("--accent", canvas.closest(".heat")), b0 = cssVar("--bit0"), ink = cssVar("--ink-3"), bg = cssVar("--panel");
+  g.fillStyle = bg; g.fillRect(0, 0, Wpx, Hpx);
+  g.font = "9px " + cssVar("--mono", document.documentElement); g.textAlign = "right"; g.textBaseline = "middle";
+  const every = rowH >= 7 ? 4 : 8;
+  for (let r = 0; r < rows; r++) {
+    if (r % every === 0) { g.fillStyle = ink; g.fillText(String(r), labelW - 4, r * rowH + rowH / 2); }
+    for (let c = 0; c < W; c++) {
+      g.fillStyle = (diffs[r] >> BigInt(W - 1 - c)) & 1n ? acc : b0;
+      g.fillRect(labelW + c * cell, r * rowH, Math.max(1, cell - (cell > 3 ? 1 : 0)), Math.max(1, rowH - 1));
+    }
+  }
+  const half = diffs.findIndex(d => popcount(d) >= n);
+  info.dataset.default = half < 0 ? `With your key, fewer than half of the ${W} bits ever differ at once.` : `With your key, half or more of the ${W} bits differ from round ${half} on.`;
+  info.textContent = info.dataset.default;
+  canvas.onmousemove = e => {
+    const r = Math.floor((e.clientY - canvas.getBoundingClientRect().top) / rowH);
+    if (r >= 0 && r < rows) info.textContent = `${r === 0 ? "Plaintext" : "After round " + r}: ${popcount(diffs[r])} of ${W} bits differ.`;
+  };
+  canvas.onmouseleave = () => { info.textContent = info.dataset.default; };
+  canvas.setAttribute("aria-label", `${cipher.toUpperCase()} difference heatmap, ${rows - 1} rounds. Bits that differ per round: ${diffs.map(popcount).join(", ")}.`);
+}
+
+function diffusionChart(sim, spk, n) {
+  const W = 680, H = 300, L = 46, R = 70, Tp = 14, Bm = 40, maxT = Math.max(sim.T, spk.T);
+  const X = r => L + (r / maxT) * (W - L - R), Y = p => Tp + (1 - p) * (H - Tp - Bm);
+  const path = (pts, f) => pts.map((o, i) => `${i ? "L" : "M"}${X(o.r).toFixed(1)},${Y(f(o)).toFixed(1)}`).join("");
+  const area = pts => path(pts, o => o.hi) + pts.slice().reverse().map(o => `L${X(o.r).toFixed(1)},${Y(o.lo).toFixed(1)}`).join("") + "Z";
+  const xt = []; for (let r = 0; r <= maxT; r += maxT > 40 ? 8 : 4) xt.push(r);
+  const series = [["simon", sim], ["speck", spk]];
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-labelledby="chartTitle chartDesc" style="font:11px var(--font)">
+    <title id="chartTitle">Share of bits flipped per round, SIMON and SPECK, ${2 * n}-bit block</title>
+    <desc id="chartDesc">Average over ${TRIALS} random keys. SIMON is fully mixed at round ${sim.full ?? "never"} of ${sim.T}; SPECK at round ${spk.full ?? "never"} of ${spk.T}. A table of the values follows the chart.</desc>
+    <rect x="${L}" y="${Y(0.65)}" width="${W - L - R}" height="${Y(0.35) - Y(0.65)}" fill="var(--panel-2)" stroke="var(--ink-3)" stroke-dasharray="3 3" stroke-width="1"/>
+    ${[0, 0.25, 0.5, 0.75, 1].map(p => `<line x1="${L}" x2="${W - R}" y1="${Y(p)}" y2="${Y(p)}" stroke="var(--line)" stroke-width="1"/><text x="${L - 6}" y="${Y(p) + 4}" text-anchor="end" fill="var(--ink-3)">${p * 100}%</text>`).join("")}
+    ${xt.map(r => `<text x="${X(r)}" y="${H - Bm + 16}" text-anchor="middle" fill="var(--ink-3)">${r}</text>`).join("")}
+    <text x="${(L + W - R) / 2}" y="${H - 6}" text-anchor="middle" fill="var(--ink-2)">round</text>
+    <text x="${W - R - 4}" y="${Y(0.65) - 5}" text-anchor="end" fill="var(--ink-3)">35–65% target band</text>
+    ${series.map(([c, s]) => `<g class="c-${c}">
+      <path d="${area(s.rounds)}" fill="var(--accent)" opacity=".16"/>
+      <path d="${path(s.rounds, o => o.mean)}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>
+      ${s.full != null ? `<line x1="${X(s.full)}" x2="${X(s.full)}" y1="${Tp}" y2="${H - Bm}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3"/>` : ""}
+      <circle cx="${X(s.T)}" cy="${Y(s.rounds[s.T].mean)}" r="4" fill="var(--accent)" stroke="var(--panel)" stroke-width="2"/>
+    </g>`).join("")}
+    ${(() => { const ys = series.map(([, s]) => Y(s.rounds[s.T].mean)); const same = sim.T === spk.T || Math.abs(X(sim.T) - X(spk.T)) < 60;
+      return series.map(([c, s], i) => `<text x="${X(s.T) + 8}" y="${ys[i] + 4 + (same ? (i ? 9 : -9) : 0)}" fill="var(--ink)" stroke="var(--panel)" stroke-width="4" stroke-linejoin="round" paint-order="stroke">${c.toUpperCase()} · T=${s.T}</text>`).join(""); })()}
+    <line class="xh" x1="0" x2="0" y1="${Tp}" y2="${H - Bm}" stroke="var(--ink-3)" stroke-width="1" visibility="hidden"/>
+    <rect class="hit" x="${L}" y="${Tp}" width="${W - L - R}" height="${H - Tp - Bm}" fill="transparent"/>
+  </svg>`;
+}
+
+function renderDiffusion(el) {
+  const { n, m, x, y } = S, W = 2 * n;
+  if (difUI.bit == null || difUI.bit >= W) difUI.bit = n;
+  const bit = difUI.bit, where = bit >= n ? `bit ${bit - n} of x` : `bit ${bit} of y`;
+  const sim = diffusionStats("simon", n, m, bit, x, y), spk = diffusionStats("speck", n, m, bit, x, y);
+  const [x2, y2] = flipped(x, y, bit, n), block = (x << BigInt(n)) | y, block2 = (x2 << BigInt(n)) | y2;
+  const stat = (c, s) => `<div class="stat c-${c}"><div class="big">${s.full != null ? `round ${s.full}` : "not reached"}</div>
+    <p><b>${vname(c, n, m)}</b> is fully mixed ${s.full != null ? `after round ${s.full}: from there on, every one of the ${W} bits flips between 35% and 65% of the time.` : `within its ${s.T} rounds by this test.`} It runs T = ${s.T} rounds${s.full != null ? `, leaving <b>${s.T - s.full} rounds of margin</b> (${Math.round(100 * (s.T - s.full) / s.T)}% of the rounds)` : ""}.</p></div>`;
+  el.innerHTML = `
+  <p class="prose">A good cipher has <dfn>diffusion</dfn>: changing one plaintext bit should change each ciphertext bit with probability about 1/2, as if the output were random. One round cannot do that, because each round only mixes a few bits. Here you flip one plaintext bit and watch how the difference spreads, round by round.</p>
+  <div class="panel">
+    <div class="flipctl"><label class="lbl" for="flipBit">Bit to flip: <span class="mono" id="flipOut">${where}</span></label>
+      <input type="range" id="flipBit" min="0" max="${W - 1}" value="${W - 1 - bit}" aria-valuetext="${where}"></div>
+    <p class="muted" style="font-size:.85rem;margin:.3rem 0 0">Or click a cell of the plaintext below (x on the left, y on the right).</p>
+    <div class="wide-scroll">${vars(ruler(W),
+      row("plaintext x‖y", block, W, { click: true, hit: bit, big: true, hex: `${hexw(x, n)} ${hexw(y, n)}` }),
+      row("with one bit flipped", block2, W, { diff: block ^ block2, hex: `${hexw(x2, n)} ${hexw(y2, n)}` }))}</div>
+  </div>
+  <h3>One run, with your key</h3>
+  <p class="prose">Each row is a round (0 = the plaintext). A coloured cell is a bit that differs between the normal run and the run with the flipped bit. Both ciphers use the same ${m} key words and the same plaintext.</p>
+  <div class="heat-grid">
+    <div class="heat c-simon"><h4>${vname("simon", n, m)}</h4><p id="hinfo-simon" aria-live="polite"></p><div class="canvas-wrap"><canvas id="heat-simon" role="img"></canvas></div></div>
+    <div class="heat c-speck"><h4>${vname("speck", n, m)}</h4><p id="hinfo-speck" aria-live="polite"></p><div class="canvas-wrap"><canvas id="heat-speck" role="img"></canvas></div></div>
+  </div>
+  <h3>Average over ${TRIALS} random keys</h3>
+  <p class="prose">One key can be lucky. The chart repeats the experiment with ${TRIALS} random keys (seeded, so the numbers are repeatable) and the same flipped bit. The line is the average share of bits that differ; the shaded band shows the least and most often flipped bit. The block counts as <dfn>fully mixed</dfn> once every bit flips 35–65% of the time.</p>
+  <div class="chart" id="difChart">
+    <ul class="chart-legend"><li class="c-simon"><span class="k"></span>SIMON average</li><li class="c-speck"><span class="k"></span>SPECK average</li><li><span class="band"></span>35–65% target</li><li>dashed line: fully mixed</li></ul>
+    ${diffusionChart(sim, spk, n)}
+    <div class="tip" hidden></div>
+  </div>
+  <div class="stat-grid">${stat("simon", sim)}${stat("speck", spk)}</div>
+  <p class="prose">Full mixing is only the start. Attacks such as differential and linear cryptanalysis look for small statistical patterns that survive well past this point, so designers add more rounds as a safety margin. The paper chose T with that margin in mind, which is why both ciphers keep going long after the block looks random by this simple test.</p>
+  <details><summary>Table of the chart's values</summary><div class="inner"><div class="tbl"><table>
+    <thead><tr><th scope="col" class="num">Round</th><th scope="col" class="num">SIMON avg</th><th scope="col" class="num">SIMON min–max bit</th><th scope="col" class="num">SPECK avg</th><th scope="col" class="num">SPECK min–max bit</th></tr></thead>
+    <tbody>${Array.from({ length: Math.max(sim.T, spk.T) + 1 }, (_, r) => {
+      const a = sim.rounds[r], b = spk.rounds[r], f = o => o ? `${(o.mean * 100).toFixed(1)}%` : "—", g = o => o ? `${(o.lo * 100).toFixed(0)}–${(o.hi * 100).toFixed(0)}%` : "—";
+      return `<tr${r === sim.full || r === spk.full ? ' class="cur"' : ""}><td class="num">${r}</td><td class="num">${f(a)}</td><td class="num">${g(a)}</td><td class="num">${f(b)}</td><td class="num">${g(b)}</td></tr>`;
+    }).join("")}</tbody></table></div></div></details>`;
+
+  const setBit = b => { difUI.bit = b; renderChapter(CH[9]); $("#flipBit", el)?.focus({ preventScroll: true }); };
+  $("#flipBit", el).addEventListener("change", e => setBit(W - 1 - +e.target.value));
+  $("#flipBit", el).addEventListener("input", e => { const b = W - 1 - +e.target.value; $("#flipOut", el).textContent = b >= n ? `bit ${b - n} of x` : `bit ${b} of y`; });
+  el.querySelector(".bits.click").addEventListener("click", e => { const c = e.target.closest("[data-bit]"); if (c) setBit(+c.dataset.bit); });
+  CH[9].redraw = () => { drawHeat($("#heat-simon", el), "simon", $("#hinfo-simon", el)); drawHeat($("#heat-speck", el), "speck", $("#hinfo-speck", el)); };
+  CH[9].redraw();
+
+  // crosshair + tooltip
+  const box = $("#difChart", el), svg = $("svg", box), tip = $(".tip", box), xh = $(".xh", svg), hit = $(".hit", svg);
+  const maxT = Math.max(sim.T, spk.T), Lx = 46, Rx = 70, Wv = 680;
+  hit.addEventListener("mousemove", e => {
+    const pt = svg.getBoundingClientRect(), sx = Wv / pt.width, vx = (e.clientX - pt.left) * sx;
+    const r = clamp(Math.round(((vx - Lx) / (Wv - Lx - Rx)) * maxT), 0, maxT), px = Lx + (r / maxT) * (Wv - Lx - Rx);
+    xh.setAttribute("x1", px); xh.setAttribute("x2", px); xh.setAttribute("visibility", "visible");
+    const line = (c, s) => { const o = s.rounds[r]; return `<div class="c-${c}"><span class="k" style="background:var(--accent)"></span>${c.toUpperCase()}: ${o ? `${(o.mean * 100).toFixed(1)}% (bits ${(o.lo * 100).toFixed(0)}–${(o.hi * 100).toFixed(0)}%)` : "finished"}</div>`; };
+    tip.innerHTML = `<b>Round ${r}</b>${line("simon", sim)}${line("speck", spk)}`;
+    tip.hidden = false;
+    const bx = box.getBoundingClientRect(), left = e.clientX - bx.left + 14;
+    tip.style.left = Math.min(left, bx.width - tip.offsetWidth - 8) + "px"; tip.style.top = (e.clientY - bx.top + 12) + "px";
+  });
+  hit.addEventListener("mouseleave", () => { tip.hidden = true; xh.setAttribute("visibility", "hidden"); });
+}
+
+// ======================================================================================
+// Chapter 11 · More than one block
+// ======================================================================================
+const PW = 192, PH = 96;
+const modeUI = { nonce: 0x5eed1e55n };
+let picture = null;
+
+function makePicture() {
+  const px = new Uint8Array(PW * PH);
+  for (let r = 0; r < PH; r++) for (let c = 0; c < PW; c++) {
+    let v = 232;                                                    // background
+    const dx = c - 56, dy = r - 44, d = Math.hypot(dx, dy);
+    if (r < 46 && d >= 15 && d <= 25) v = 96;                       // shackle
+    if (c >= 24 && c < 88 && r >= 40 && r < 88) v = 40;             // body
+    if (Math.hypot(c - 56, r - 58) <= 6 || (c >= 53 && c < 59 && r >= 58 && r < 76)) v = 232;   // keyhole
+    if (c >= 104 && c < 184 && r >= 8 && r < 40) v = [64, 120, 176, 208][Math.floor((c - 104) / 20)];   // grey steps
+    if (c >= 104 && c < 184 && r >= 48 && r < 88) v = ((Math.floor((c - 104) / 16) + Math.floor((r - 48) / 8)) & 1) ? 24 : 200;   // checkerboard
+    px[r * PW + c] = v;
+  }
+  return px;
+}
+
+function modeKey() {
+  const c = S.cipher;
+  if (S.n === 32) return { key: S.key, m: S.m, note: `your current key (${vname(c, 32, S.m)})` };
+  const v = vectorState(c, 32, 4);
+  return { key: v.key, m: 4, note: `the paper's ${vname(c, 32, 4)} test key, because your current variant does not use a 64-bit block` };
+}
+
+function encryptPicture(px, cipher, rk, mode, nonce) {
+  const out = new Uint8Array(px.length), blocks = px.length / 8;
+  for (let i = 0; i < blocks; i++) {
+    let x = 0n, y = 0n;
+    for (let b = 0; b < 4; b++) { x = (x << 8n) | BigInt(px[8 * i + b]); y = (y << 8n) | BigInt(px[8 * i + 4 + b]); }
+    let cx, cy;
+    if (mode === "ecb") [cx, cy] = encryptWith(cipher, x, y, rk, 32);
+    else { const [kx, ky] = encryptWith(cipher, nonce, BigInt(i), rk, 32); cx = x ^ kx; cy = y ^ ky; }
+    for (let b = 0; b < 4; b++) { out[8 * i + b] = Number((cx >> BigInt(24 - 8 * b)) & 0xffn); out[8 * i + 4 + b] = Number((cy >> BigInt(24 - 8 * b)) & 0xffn); }
+  }
+  return out;
+}
+function distinctBlocks(px) { const s = new Set(); for (let i = 0; i < px.length; i += 8) s.add(px.subarray(i, i + 8).join(",")); return s.size; }
+function paint(canvas, px) {
+  canvas.width = PW; canvas.height = PH;
+  const g = canvas.getContext("2d"), img = g.createImageData(PW, PH);
+  for (let i = 0; i < px.length; i++) { img.data[4 * i] = img.data[4 * i + 1] = img.data[4 * i + 2] = px[i]; img.data[4 * i + 3] = 255; }
+  g.putImageData(img, 0, 0);
+}
+
+function renderModes(el) {
+  const c = S.cipher, { key, m, note } = modeKey(), rk = (c === "simon" ? simon_round_keys : speck_round_keys)(key, 32);
+  picture = picture || makePicture();
+  const ecb = encryptPicture(picture, c, rk, "ecb"), ctr = encryptPicture(picture, c, rk, "ctr", modeUI.nonce);
+  const blocks = picture.length / 8, dp = distinctBlocks(picture), de = distinctBlocks(ecb), dc = distinctBlocks(ctr);
+  const snippet = [
+    "# Not part of ref.py: how this page uses " + c + "_encrypt on a whole picture.",
+    "# ECB: encrypt every 8-byte block on its own.",
+    "for i, (x, y) in enumerate(blocks):",
+    `    out[i] = ${c}_encrypt(x, y, key, 32)`,
+    "",
+    "# CTR: encrypt a counter, then XOR the result into the block.",
+    "for i, (x, y) in enumerate(blocks):",
+    `    kx, ky = ${c}_encrypt(nonce, i, key, 32)`,
+    "    out[i] = (x ^ kx, y ^ ky)",
+  ];
+  el.innerHTML = `
+  <p class="prose">${C(c + "_encrypt")} handles exactly one block. To encrypt anything longer you need a <dfn>mode of operation</dfn>: a rule for applying the cipher block after block. The simplest rule is not safe, and a picture shows why.</p>
+  <p class="prose">The picture below is ${PW} × ${PH} greyscale pixels, one byte each. With a 64-bit (8-byte) block that is ${blocks} blocks, encrypted with ${vname(c, 32, m)} using ${note}.</p>
+  <div class="pics">
+    <figure><canvas id="picOrig" role="img" aria-label="Original picture: a padlock, four grey steps and a checkerboard"></canvas><figcaption><b>Original</b>${blocks} blocks, but only ${dp} different ones.</figcaption></figure>
+    <figure><canvas id="picEcb" role="img" aria-label="ECB-encrypted picture: the padlock and patterns are still visible"></canvas><figcaption><b>ECB (electronic codebook)</b>Each block is encrypted on its own, so equal blocks give equal ciphertext: still ${de} different blocks, and the shapes show through.</figcaption></figure>
+    <figure><canvas id="picCtr" role="img" aria-label="CTR-encrypted picture: uniform noise"></canvas><figcaption><b>CTR (counter)</b>Block i is XORed with ${c}_encrypt(nonce, i), which is different for every i: ${dc} different blocks, and nothing shows through.</figcaption></figure>
+  </div>
+  <div class="btn-row"><button type="button" class="btn" id="newNonce">New nonce</button><span class="muted" style="font-size:.88rem">nonce = ${hx(modeUI.nonce, 32)}: a number used once. Reusing it with the same key would repeat the keystream.</span></div>
+  <div class="code" role="region" tabindex="0" aria-label="Sketch of ECB and CTR in Python"><pre>${snippet.map(s => `<span class="ln"><span class="src">${hiPy(s)}</span></span>`).join("")}</pre></div>
+  <p class="prose">The cipher itself is the same in both. What leaks in ECB is equality: an attacker learns which blocks repeat without knowing the key. CTR turns the block cipher into a stream of pseudo-random bytes, so repeated plaintext no longer gives repeated ciphertext. Neither mode detects tampering on its own; real systems add a message authentication code.</p>`;
+  paint($("#picOrig", el), picture); paint($("#picEcb", el), ecb); paint($("#picCtr", el), ctr);
+  $("#newNonce", el).addEventListener("click", () => {
+    const b = new Uint32Array(1); crypto.getRandomValues(b); modeUI.nonce = BigInt(b[0]);
+    renderChapter(CH[10]); $("#newNonce", el)?.focus();
+  });
+}
+
+// ======================================================================================
+// Chapter 12 · Full source
+// ======================================================================================
+function renderSource(el) {
+  const where = [
+    ["1–5", "round-keys"], ["7–10", "inputs"], ["12–13", "rotations"], ["15–21", "check"], ["23–34", "round-keys"], ["36", "one-round"],
+    ["38–42", "all-rounds"], ["44–48", "decryption"], ["50–59", "round-keys"], ["61–67", "all-rounds"], ["69–75", "decryption"], ["77–110", "testing"],
+  ];
+  el.innerHTML = `
+  <ul class="where">${where.map(([l, id]) => `<li>Lines ${l}: ${chLink(id)}</li>`).join("")}</ul>
+  <div class="code-tools"><button type="button" class="btn primary" id="copySrc">Copy ref.py</button><span id="copyStatus" class="status" role="status"></span></div>
+  ${codeView([[1, LINES.length]], { label: "ref.py, all lines" })}
+  <details><summary>The JavaScript translation this page runs</summary><div class="inner">
+    <p class="prose">Browsers cannot run Python, so the page runs this line-for-line translation. Each line ends with the ref.py line it translates. Words are JavaScript BigInts, which, like Python integers, have no size limit.</p>
+    <pre class="out">${esc(document.getElementById("ref-js").textContent.trim())}</pre>
+  </div></details>`;
+  $("#copySrc", el).addEventListener("click", async () => {
+    const st = $("#copyStatus", el);
+    let ok = false;
+    try { await navigator.clipboard.writeText(REF); ok = true; } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = REF; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.append(ta); ta.select();
+      try { ok = document.execCommand("copy"); } catch (e2) { ok = false; }
+      ta.remove();
+    }
+    st.className = "status " + (ok ? "ok" : "bad");
+    st.textContent = ok ? `Copied ${LINES.length} lines.` : "Copying was blocked by the browser; select the code and copy it by hand.";
+  });
+}
+
+// ======================================================================================
+// Start-up
+// ======================================================================================
+function init() {
+  buildChapters();
+  Object.assign(S, vectorState("simon", 16, 4));
+  derive(); version++;
+  refreshChrome();
+
+  const nOk = TESTS.filter(t => t.ok).length, allOk = nOk === 20 && !TRACE_BAD.length;
+  const badge = $("#testBadge");
+  badge.innerHTML = allOk ? `<span class="pass">✓ ${nOk} / 20 test vectors pass</span>` : `<span class="fail">✗ ${nOk} / 20 test vectors pass</span>`;
+  if (!allOk) {
+    const banner = $("#failBanner");
+    banner.hidden = false;
+    banner.innerHTML = `Warning: ${20 - nOk} of the 20 test vectors failed in this browser${TRACE_BAD.length ? `, and the tracers disagree for ${esc(TRACE_BAD.join(", "))}` : ""}. The values on this page may be wrong. See ${chLink("testing")}.`;
+  }
+
+  const fromHash = () => { const id = decodeURIComponent(location.hash.slice(1)); return CH.some(c => c.id === id) ? id : null; };
+  go(fromHash() || "glance", { focus: false, push: false });
+  window.addEventListener("popstate", () => { const id = fromHash(); if (id && id !== CH[cur].id) go(id, { push: false }); });
+  window.addEventListener("hashchange", () => { const id = fromHash(); if (id && id !== CH[cur].id) go(id, { push: false }); });
+  $("#chSelect").addEventListener("change", e => go(e.target.value));
+  $("#prevBtn").addEventListener("click", () => go(cur - 1));
+  $("#nextBtn").addEventListener("click", () => go(cur + 1));
+  $("#changeInputs").addEventListener("click", () => { go("inputs"); $("#kw" + (S.m - 1))?.focus(); });
+  document.addEventListener("keydown", e => {
+    if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (e.target.closest && e.target.closest("input, select, textarea, [contenteditable], .code")) return;
+    if (e.key === "ArrowLeft" && cur > 0) { e.preventDefault(); go(cur - 1); }
+    else if (e.key === "ArrowRight" && cur < CH.length - 1) { e.preventDefault(); go(cur + 1); }
+  });
+  let rt = 0;
+  window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => CH[cur].redraw && CH[cur].redraw(), 120); });
+  darkMode.addEventListener("change", () => { CH.forEach(c => { if (c.redraw) c.v = -1; }); if (CH[cur].redraw) CH[cur].redraw(); });
+}
+
+init();
+})();
+</script>
+</body>
+</html>
